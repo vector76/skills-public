@@ -1,0 +1,25 @@
+# Smallest non-trivial workflow: greet, then say goodbye.
+#
+# This example also demonstrates the prompt-authoring discipline:
+# the LLM cannot see `allowed_transitions`, so any prompt whose policy
+# is not implicit must spell out the tag.
+#
+# Run:
+#   raymond examples/minimal.yaml --input "Alice"
+
+states:
+  1_START:
+    prompt: |
+      Greet {{input}} warmly in one sentence.
+    # Implicit transition — single non-result, non-ask goto: the
+    # orchestrator dispatches to DONE without needing a tag in the output.
+    allowed_transitions:
+      - { tag: goto, target: DONE }
+
+  DONE:
+    prompt: |
+      Say goodbye in one sentence.
+
+      End your reply with exactly: <result>done</result>
+    allowed_transitions:
+      - { tag: result }

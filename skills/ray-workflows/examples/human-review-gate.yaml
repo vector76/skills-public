@@ -1,0 +1,70 @@
+# Human-review gate: prepare an analysis, pause for a human decision,
+# then execute. Times out to ESCALATE after 48 hours.
+#
+# Note the discipline around <ask>: the tag is never implicit because its
+# body is the human-facing question — only the LLM can compose it. So the
+# prompt that wants to pause for review must explicitly tell the model to
+# emit <ask next="..."> ... </ask>.
+#
+# Run interactively:
+#   raymond examples/human-review-gate.yaml --on-ask=pause --input "Acme Corp"
+#
+# When the workflow asks, raymond writes a pending-input JSON record to
+# stdout and exits with code 2. Resume with the answer:
+#   raymond --resume <id> --input "approve"
+#
+# Or run under the daemon:
+#   raymond serve --root .
+# (requires the manifest `id:` below)
+
+id: vendor-approval
+name: Vendor Approval
+description: Evaluates a vendor proposal and routes through human approval.
+default_budget: 5.0
+input:
+  mode: required
+  label: Vendor name
+  description: The vendor to evaluate (passed to the first state as {{input}}).
+
+states:
+  1_START:
+    prompt: |
+      Research the vendor "{{input}}" and prepare a short analysis covering
+      price, support SLA, and references.
+
+      Do not make a recommendation yourself. Instead, end your reply by
+      asking the human reviewer to decide. Use this exact form:
+
+        <ask next="DECISION" timeout="48h" timeout_next="ESCALATE">
+        ...your analysis goes here, followed by the question for the human...
+        Please respond with "approve", "reject", or "more info: ..."
+        (describing what additional analysis you need).
+        </ask>
+
+      The text inside <ask>...</ask> is what the human sees. Text before
+      the tag is internal reasoning, visible in logs but not to the human.
+    allowed_transitions:
+      - tag: ask
+        next: DECISION
+        timeout: "48h"
+        timeout_next: ESCALATE
+
+  DECISION:
+    prompt: |
+      The reviewer's decision: {{input}}
+
+      Carry out the decision and produce a final report in
+      {{task_folder}}/vendor_report.md.
+
+      End your reply with: <result>completed</result>
+    allowed_transitions:
+      - { tag: result }
+
+  ESCALATE:
+    prompt: |
+      The vendor decision timed out (48h). Send an escalation notice
+      and close the workflow.
+
+      End your reply with: <result>escalated</result>
+    allowed_transitions:
+      - { tag: result }

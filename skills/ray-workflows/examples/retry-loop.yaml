@@ -1,0 +1,50 @@
+# Retry loop with a bounded number of attempts.
+#
+# The attempt count is plumbed through `input="..."` so the LLM doesn't have
+# to remember it across turns. Each branching prompt names the tags the LLM
+# may emit — `allowed_transitions` is not visible to the model.
+#
+# Run:
+#   raymond examples/retry-loop.yaml
+
+states:
+  1_START:
+    prompt: |
+      Begin a retry sequence.
+    # Implicit transition — single non-result, non-ask goto with `input`.
+    # The orchestrator renders {{input}} in the input attribute and dispatches.
+    allowed_transitions:
+      - { tag: goto, target: TRY, input: "1" }
+
+  TRY:
+    prompt: |
+      This is attempt {{input}} of 3.
+
+      Perform the operation:
+        - Call the external API at https://example.invalid/ping.
+        - It often fails the first time or two; report success or failure.
+
+      End your reply with exactly one of:
+        <goto>DONE</goto>                  — operation succeeded
+        <goto input="N+1">TRY</goto>       — failed, retry; replace N+1 with the next attempt number
+        <goto>FAIL</goto>                  — failed and attempts are exhausted
+    allowed_transitions:
+      - { tag: goto, target: TRY }
+      - { tag: goto, target: DONE }
+      - { tag: goto, target: FAIL }
+
+  DONE:
+    prompt: |
+      Report success and what worked in one paragraph.
+
+      End your reply with: <result>success</result>
+    allowed_transitions:
+      - { tag: result }
+
+  FAIL:
+    prompt: |
+      Report exhausted-retries failure with the last error in one paragraph.
+
+      End your reply with: <result>failed</result>
+    allowed_transitions:
+      - { tag: result }

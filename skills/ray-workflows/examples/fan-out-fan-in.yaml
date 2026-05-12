@@ -1,0 +1,74 @@
+# Fan-out / fan-in: spawn N workers in parallel, join via a filesystem barrier.
+#
+# DISPATCH emits one <fork> per task plus a single <goto>JOIN</goto> for
+# itself. Workers write `{{task_folder}}/results/<id>.json` and terminate.
+# JOIN waits for all expected files, then aggregates.
+#
+# Every branching state's prompt explicitly tells the model what tags to
+# emit; `allowed_transitions` is the validator, not the instruction.
+#
+# Run:
+#   raymond examples/fan-out-fan-in.yaml --input "alpha,beta,gamma"
+
+states:
+  1_START:
+    prompt: |
+      Comma-separated tasks to dispatch: {{input}}
+
+      Write the task list (one per line) to {{task_folder}}/tasks.txt
+      and the expected count to {{task_folder}}/expected.txt.
+    # Implicit transition — single non-result, non-ask goto.
+    allowed_transitions:
+      - { tag: goto, target: DISPATCH }
+
+  DISPATCH:
+    prompt: |
+      Read {{task_folder}}/tasks.txt. For each task name `T` in the file,
+      emit a fork:
+
+        <fork next="JOIN" item="T">WORKER</fork>
+
+      (Substitute the literal task name for `T` — `{{item}}` is the
+      template variable the worker will see.)
+
+      After all the forks, end your reply with exactly one:
+
+        <goto>JOIN</goto>
+
+      Multiple <fork> tags in one output are allowed; exactly one <goto>
+      may appear alongside them. No other transition combinations are
+      legal.
+    allowed_transitions:
+      - tag: fork
+        target: WORKER
+        next: JOIN
+      - { tag: goto, target: JOIN }
+
+  WORKER:
+    prompt: |
+      You are processing task `{{item}}`.
+
+      Do the work (be brief for this demo). Write your output to
+      {{task_folder}}/results/{{item}}.json.
+
+      End your reply with: <result>{{item}} done</result>
+    allowed_transitions:
+      - { tag: result }
+
+  JOIN:
+    prompt: |
+      The expected number of results is in {{task_folder}}/expected.txt.
+
+      Use a shell tool to wait until the number of files in
+      {{task_folder}}/results/ matches that count, then read each one.
+    # Implicit transition — single goto to REPORT.
+    allowed_transitions:
+      - { tag: goto, target: REPORT }
+
+  REPORT:
+    prompt: |
+      Summarize the per-task results in one paragraph.
+
+      End your reply with: <result>aggregated</result>
+    allowed_transitions:
+      - { tag: result }
