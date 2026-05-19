@@ -58,7 +58,7 @@ When `allowed_transitions` is absent, no reminder can be generated; a missing ta
 
 ### Lint catches the most common gap
 
-`raymond lint workflow.yaml` emits a warning (`unused-allowed-transition`) for any state with two or more `allowed_transitions` entries whose targets are not mentioned anywhere in the prompt body. It does not lint single-entry policies (those are presumed implicit). It's not a guarantee — the prompt could mention the target without instructing the model to emit a tag — but it catches the most common authoring mistake.
+`ray lint workflow.yaml` emits a warning (`unused-allowed-transition`) for any state with two or more `allowed_transitions` entries whose targets are not mentioned anywhere in the prompt body. It does not lint single-entry policies (those are presumed implicit). It's not a guarantee — the prompt could mention the target without instructing the model to emit a tag — but it catches the most common authoring mistake.
 
 ### Reliability hint: keep loop bodies tag-free
 
@@ -198,8 +198,8 @@ Please respond with:
 - **Never implicit.** The tag body **is** the human-facing question; only the LLM can write it. Your prompt must explicitly tell the model to emit `<ask next="...">...question...</ask>`. (See [What the LLM sees](#what-the-llm-sees).)
 - **Input delivery**:
   - CLI default (`--on-ask=reject`) — the workflow fails if it asks. Use for CI.
-  - `--on-ask=pause` — Raymond writes a structured JSON pending-input record to stdout and exits with code 2; resume via `raymond --resume <id> --input "..."`.
-  - `raymond serve` — pending input is exposed through the HTTP API and MCP elicitation.
+  - `--on-ask=pause` — Raymond writes a structured JSON pending-input record to stdout and exits with code 2; resume via `ray --resume <id> --input "..."`.
+  - `ray serve` — pending input is exposed through the HTTP API and MCP elicitation.
 - **No `cd` allowed** on `<ask>` (the agent is suspended, the directory is irrelevant).
 - **File attachments** (slot/bucket/display) are an opt-in extension — see [protocol.md](protocol.md#ask-file-attachments).
 

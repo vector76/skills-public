@@ -206,7 +206,7 @@ ESCALATE:
     - { tag: result }
 ```
 
-Run with `raymond serve` for HTTP/MCP-delivered responses, or `raymond --on-ask=pause workflow.yaml` and resume with `raymond --resume <id> --input "approve"`. See `examples/human-review-gate.yaml`.
+Run with `ray serve` for HTTP/MCP-delivered responses, or `ray --on-ask=pause workflow.yaml` and resume with `ray --resume <id> --input "approve"`. See `examples/human-review-gate.yaml`.
 
 ## File upload then process
 

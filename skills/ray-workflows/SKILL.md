@@ -1,13 +1,13 @@
 ---
 name: ray-workflows
-description: Authoring Raymond (ray) workflows as single-file YAML — finite-state machines whose states are LLM prompts or shell scripts, transitioning via XML tags (`<goto>`, `<reset>`, `<call>`, `<function>`, `<fork>`, `<ask>`, `<result>`). Use when the user is creating, editing, debugging, or running a `.yaml` ray workflow, mentions raymond/ray workflows, or asks about transitions, the return stack, `allowed_transitions`, `<ask>` human input, or the `raymond` CLI.
+description: Authoring Raymond (ray) workflows as single-file YAML — finite-state machines whose states are LLM prompts or shell scripts, transitioning via XML tags (`<goto>`, `<reset>`, `<call>`, `<function>`, `<fork>`, `<ask>`, `<result>`). Use when the user is creating, editing, debugging, or running a `.yaml` ray workflow, mentions raymond/ray workflows, or asks about transitions, the return stack, `allowed_transitions`, `<ask>` human input, or the `ray` CLI.
 ---
 
 # Ray Workflows (YAML)
 
 A workflow is a **finite-state machine**. Each state is either an **LLM prompt** (markdown) or a **shell script** (`sh`/`ps1`/`bat`). Each state's output contains **exactly one** transition tag, which decides where the workflow goes next. The whole workflow lives in one `.yaml` file.
 
-> Terminology: a *workflow run* is the whole execution (the thing `raymond --resume <id>` resumes). A *state output* is the single message produced by one state's invocation — that's where the transition tag lives.
+> Terminology: a *workflow run* is the whole execution (the thing `ray --resume <id>` resumes). A *state output* is the single message produced by one state's invocation — that's where the transition tag lives.
 
 > This skill covers YAML workflows only. Directory and zip layouts exist but are not the recommended form for new work.
 
@@ -28,7 +28,7 @@ Targets are **bare state names** — `STATE`, not `STATE.md`. The orchestrator r
 ## YAML shape
 
 ```yaml
-# Optional manifest (only needed for `raymond serve` discovery)
+# Optional manifest (only needed for `ray serve` discovery)
 id: my-workflow
 name: My Workflow
 description: One-line summary
@@ -95,20 +95,20 @@ states:
 ```
 
 ```bash
-raymond workflow.yaml --input "Alice"
+ray workflow.yaml --input "Alice"
 ```
 
-Entry point: `1_START` if present, otherwise `START`. Start elsewhere with `raymond workflow.yaml/DONE` (bare state name).
+Entry point: `1_START` if present, otherwise `START`. Start elsewhere with `ray workflow.yaml/DONE` (bare state name).
 
 ## Load further references on demand
 
 Each file below is loaded only when you need it. They do **not** repeat the cheat sheet above.
 
 - **Picking a tag** — semantics, attributes, common pitfalls per tag, and "which tag should I use here?" → [transitions.md](transitions.md)
-- **YAML schema** — every field, validation rules, error taxonomy, manifest metadata for `raymond serve` → [schema.md](schema.md)
+- **YAML schema** — every field, validation rules, error taxonomy, manifest metadata for `ray serve` → [schema.md](schema.md)
 - **Cross-cutting semantics** — return stack, `{{input}}` forwarding, `<ask>` file uploads (slot vs bucket), `cd`/`cwd`, template variables → [protocol.md](protocol.md)
 - **Recipes** — retry loops, fan-out/fan-in, human-review gates, polling, escalation → [patterns.md](patterns.md)
-- **CLI** — running, `raymond lint`, `raymond diagram`, entry-point resolution, `--input`, `--on-ask`, resume → [cli.md](cli.md)
+- **CLI** — running, `ray lint`, `ray diagram`, entry-point resolution, `--input`, `--on-ask`, resume → [cli.md](cli.md)
 - **Worked examples** (runnable `.yaml`) → [examples/](examples/)
 
 ## Authoring workflow
@@ -116,6 +116,6 @@ Each file below is loaded only when you need it. They do **not** repeat the chea
 1. Sketch the states and the arrows on paper (or in a diagram comment at the top of the file). Decide which states are LLM and which are script.
 2. Write the YAML shape with empty prompts and the `allowed_transitions` lists. The transition graph is the contract.
 3. Fill in prompts. Reference `{{input}}` where the prior state's payload should appear, and instruct the model which tag(s) to emit — skip the instruction only when the implicit-transition rules apply (see *Authoring discipline* above).
-4. Run `raymond lint workflow.yaml` — catches missing targets, unreachable states, policy violations, and (via `unused-allowed-transition`) prompts that don't mention a target listed in `allowed_transitions`. Zero cost; run after every edit.
-5. Optionally run `raymond diagram workflow.yaml --html --output diagram.html` to eyeball the FSM.
+4. Run `ray lint workflow.yaml` — catches missing targets, unreachable states, policy violations, and (via `unused-allowed-transition`) prompts that don't mention a target listed in `allowed_transitions`. Zero cost; run after every edit.
+5. Optionally run `ray diagram workflow.yaml --html --output diagram.html` to eyeball the FSM.
 6. Run the workflow. Where the policy has exactly one allowed transition and that entry is neither `<ask>` nor a bare `<result>`, the orchestrator assumes the transition implicitly — the model may omit the tag.

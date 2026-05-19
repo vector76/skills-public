@@ -5,7 +5,7 @@
 # may emit — `allowed_transitions` is not visible to the model.
 #
 # Run:
-#   raymond examples/retry-loop.yaml
+#   ray examples/retry-loop.yaml
 
 states:
   1_START:

@@ -5,7 +5,7 @@
 # is not implicit must spell out the tag.
 #
 # Run:
-#   raymond examples/minimal.yaml --input "Alice"
+#   ray examples/minimal.yaml --input "Alice"
 
 states:
   1_START:

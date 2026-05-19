@@ -94,7 +94,7 @@ Script states (`sh`/`ps1`/`bat`) don't use template substitution — instead the
 
 ## Working directory (`cd`)
 
-Agents execute by default in the directory where `raymond` was launched. The `cd` attribute changes that for the current agent (`<reset>`) or for a newly spawned worker (`<fork>`).
+Agents execute by default in the directory where `ray` was launched. The `cd` attribute changes that for the current agent (`<reset>`) or for a newly spawned worker (`<fork>`).
 
 | Tag | Supports `cd` | Effect |
 |---|---|---|
@@ -216,7 +216,7 @@ Script states cannot be re-prompted (there's no LLM). A script that prints zero 
 `model` may be set:
 
 1. **On the state itself** — the state's `model:` field (`opus` | `sonnet` | `haiku`). Highest priority.
-2. **By CLI** — `raymond ... --model sonnet`. Used when the state has no `model:` field.
+2. **By CLI** — `ray ... --model sonnet`. Used when the state has no `model:` field.
 3. **Default** — `sonnet`.
 
 Common idiom: use `opus` for the few reasoning-heavy states (`PLAN`, `REVIEW`), and `haiku` for cheap deterministic evaluators.

@@ -6,16 +6,16 @@ Running, linting, and diagramming a `.yaml` workflow. For schema and tag semanti
 
 ```bash
 # Start at the workflow's entry point (1_START or START)
-raymond workflow.yaml
+ray workflow.yaml
 
 # Start at a specific state (bare name, no extension)
-raymond workflow.yaml/REVIEW
+ray workflow.yaml/REVIEW
 
 # Pass an initial input — appears in the first state as {{input}}
-raymond workflow.yaml --input "review this PR"
+ray workflow.yaml --input "review this PR"
 
 # Pipe input
-cat data.json | raymond workflow.yaml --input "$(cat)"
+cat data.json | ray workflow.yaml --input "$(cat)"
 ```
 
 The `workflow.yaml/STATE` syntax is **not** a filesystem path. The CLI splits on the `.yaml`/`.yml` extension to separate the scope from the initial-state name. The bare state name is resolved to the appropriate virtual filename (`REVIEW.md` for a markdown state, `REVIEW.sh` for a script state, etc.).
@@ -49,10 +49,10 @@ When no initial state is given:
 ## Resume
 
 ```bash
-raymond --resume <workflow-id>
+ray --resume <workflow-id>
 
 # Deliver pending <ask> input on resume
-raymond --resume <workflow-id> --input "approve"
+ray --resume <workflow-id> --input "approve"
 ```
 
 On resume the YAML file is re-parsed and re-validated. If the file has been deleted or now fails validation, resume fails with a clear error.
@@ -60,17 +60,17 @@ On resume the YAML file is re-parsed and re-validated. If the file has been dele
 ## List, status, recover
 
 ```bash
-raymond --list                  # list workflow state files
-raymond --status <id>           # show status for a workflow
-raymond --recover               # list in-progress workflows
+ray --list                  # list workflow state files
+ray --status <id>           # show status for a workflow
+ray --recover               # list in-progress workflows
 ```
 
 ## Lint
 
 ```bash
-raymond lint workflow.yaml
-raymond lint --json --level error workflow.yaml
-raymond lint --level info workflow.yaml             # include info notices
+ray lint workflow.yaml
+ray lint --json --level error workflow.yaml
+ray lint --level info workflow.yaml             # include info notices
 ```
 
 Run after every edit — the cost is zero and it catches most authoring mistakes before a single LLM call. The most useful checks:
@@ -94,8 +94,8 @@ Run after every edit — the cost is zero and it catches most authoring mistakes
 ## Diagram
 
 ```bash
-raymond diagram workflow.yaml                    # Mermaid flowchart to stdout
-raymond diagram workflow.yaml --html --output diagram.html
+ray diagram workflow.yaml                    # Mermaid flowchart to stdout
+ray diagram workflow.yaml --html --output diagram.html
 ```
 
 Use the HTML form for hover details and styling; useful for reviewing the FSM before running anything.
@@ -111,22 +111,22 @@ When `--on-ask=pause` and the workflow emits an `<ask>`:
 To deliver a response:
 
 ```bash
-raymond --resume <id> --input "the human's response"
+ray --resume <id> --input "the human's response"
 ```
 
-For interactive use, prefer running under `raymond serve` (HTTP / MCP / web UI) — the daemon delivers `<ask>` input through its own channels.
+For interactive use, prefer running under `ray serve` (HTTP / MCP / web UI) — the daemon delivers `<ask>` input through its own channels.
 
 ## Initial config
 
 ```bash
-raymond --init-config
+ray --init-config
 ```
 
 Creates a template `.raymond/config.toml` in the current directory.
 
 ## Daemon mode
 
-`raymond serve --root <dir>` discovers all `.yaml` workflows under `<dir>` that include a top-level `id:` field (see [schema.md](schema.md#manifest-fields-optional-daemon-only)) and exposes them via:
+`ray serve --root <dir>` discovers all `.yaml` workflows under `<dir>` that include a top-level `id:` field (see [schema.md](schema.md#manifest-fields-optional-daemon-only)) and exposes them via:
 
 - HTTP API (`POST /runs`, `POST /runs/{id}/asks/{ask_id}`, …)
 - MCP tools (one tool per workflow)
@@ -136,7 +136,7 @@ Manifest fields like `description`, `default_budget`, `input.label`, and `requir
 
 ## Tips
 
-- Run `raymond lint workflow.yaml` after each edit. The cost is zero and it catches most footguns.
-- When iterating on a single state, use `raymond workflow.yaml/STATE_NAME` to start partway in — combined with `--input "..."` for the value that would have arrived from the predecessor.
+- Run `ray lint workflow.yaml` after each edit. The cost is zero and it catches most footguns.
+- When iterating on a single state, use `ray workflow.yaml/STATE_NAME` to start partway in — combined with `--input "..."` for the value that would have arrived from the predecessor.
 - Set `model: haiku` and `effort: low` on cheap evaluator states; reserve `opus` for the few states that need it.
-- Use `raymond diagram workflow.yaml --html` whenever the transition graph gets non-trivial — eyeballing the FSM is faster than reading the YAML.
+- Use `ray diagram workflow.yaml --html` whenever the transition graph gets non-trivial — eyeballing the FSM is faster than reading the YAML.

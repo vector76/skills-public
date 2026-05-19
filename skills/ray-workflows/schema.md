@@ -5,7 +5,7 @@ The authoritative field reference for a `.yaml` workflow file. For tag semantics
 ## Top-level keys
 
 ```yaml
-# Manifest (all optional; only consumed by `raymond serve`)
+# Manifest (all optional; only consumed by `ray serve`)
 id: vendor-approval
 name: Vendor Approval
 description: Evaluates a vendor proposal and routes through human approval
@@ -31,7 +31,7 @@ states:
 
 ### Manifest fields (optional, daemon-only)
 
-Manifest keys have **no effect on CLI behavior**. `raymond workflow.yaml` runs identically with or without them. They are consumed exclusively by `raymond serve` for discovery.
+Manifest keys have **no effect on CLI behavior**. `ray workflow.yaml` runs identically with or without them. They are consumed exclusively by `ray serve` for discovery.
 
 | Field | Type | Default | Purpose |
 |---|---|---|---|

@@ -7,14 +7,14 @@
 # emit <ask next="..."> ... </ask>.
 #
 # Run interactively:
-#   raymond examples/human-review-gate.yaml --on-ask=pause --input "Acme Corp"
+#   ray examples/human-review-gate.yaml --on-ask=pause --input "Acme Corp"
 #
 # When the workflow asks, raymond writes a pending-input JSON record to
 # stdout and exits with code 2. Resume with the answer:
-#   raymond --resume <id> --input "approve"
+#   ray --resume <id> --input "approve"
 #
 # Or run under the daemon:
-#   raymond serve --root .
+#   ray serve --root .
 # (requires the manifest `id:` below)
 
 id: vendor-approval

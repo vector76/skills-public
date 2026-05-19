@@ -8,7 +8,7 @@
 # emit; `allowed_transitions` is the validator, not the instruction.
 #
 # Run:
-#   raymond examples/fan-out-fan-in.yaml --input "alpha,beta,gamma"
+#   ray examples/fan-out-fan-in.yaml --input "alpha,beta,gamma"
 
 states:
   1_START:
