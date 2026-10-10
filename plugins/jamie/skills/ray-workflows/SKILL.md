@@ -1,6 +1,7 @@
 ---
 name: ray-workflows
-description: Authoring Raymond (ray) workflows as single-file YAML — finite-state machines whose states are LLM prompts or shell scripts, transitioning via XML tags (`<goto>`, `<reset>`, `<call>`, `<function>`, `<fork>`, `<ask>`, `<result>`). Use when the user is creating, editing, debugging, or running a `.yaml` ray workflow, mentions raymond/ray workflows, or asks about transitions, the return stack, `allowed_transitions`, `<ask>` human input, or the `ray` CLI.
+description: Use when creating, editing, debugging, or running a Raymond (`ray`) workflow — a single-file `.yaml` state machine of LLM-prompt and shell-script states — or asked about its transition tags (`<goto>`, `<reset>`, `<call>`, `<function>`, `<fork>`, `<ask>`, `<result>`), the return stack, `allowed_transitions`, `<ask>` human input, or the `ray` CLI.
+disable-model-invocation: false
 ---
 
 # Ray Workflows (YAML)
@@ -104,11 +105,11 @@ Entry point: `1_START` if present, otherwise `START`. Start elsewhere with `ray 
 
 Each file below is loaded only when you need it. They do **not** repeat the cheat sheet above.
 
-- **Picking a tag** — semantics, attributes, common pitfalls per tag, and "which tag should I use here?" → [transitions.md](transitions.md)
-- **YAML schema** — every field, validation rules, error taxonomy, manifest metadata for `ray serve` → [schema.md](schema.md)
-- **Cross-cutting semantics** — return stack, `{{input}}` forwarding, `<ask>` file uploads (slot vs bucket), `cd`/`cwd`, template variables → [protocol.md](protocol.md)
-- **Recipes** — retry loops, fan-out/fan-in, human-review gates, polling, escalation → [patterns.md](patterns.md)
-- **CLI** — running, `ray lint`, `ray diagram`, entry-point resolution, `--input`, `--on-ask`, resume → [cli.md](cli.md)
+- **Picking a tag** — semantics, attributes, common pitfalls per tag, and "which tag should I use here?" → [transitions.md](reference/transitions.md)
+- **YAML schema** — every field, validation rules, error taxonomy, manifest metadata for `ray serve` → [schema.md](reference/schema.md)
+- **Cross-cutting semantics** — return stack, `{{input}}` forwarding, `<ask>` file uploads (slot vs bucket), `cd`/`cwd`, template variables → [protocol.md](reference/protocol.md)
+- **Recipes** — retry loops, fan-out/fan-in, human-review gates, polling, escalation → [patterns.md](reference/patterns.md)
+- **CLI** — running, `ray lint`, `ray diagram`, entry-point resolution, `--input`, `--on-ask`, resume → [cli.md](reference/cli.md)
 - **Worked examples** (runnable `.yaml`) → [examples/](examples/)
 
 ## Authoring workflow

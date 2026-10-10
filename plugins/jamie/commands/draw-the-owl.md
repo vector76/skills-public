@@ -1,5 +1,4 @@
 ---
-name: draw-the-owl
 description: Elaborate on an underspecified feature document with assumptions and choices, enumerating those choices for human approval
 argument-hint: [document]
 arguments: [document]
@@ -14,7 +13,7 @@ Analyze the feature document for:
 - **Underspecified areas**: decisions left unmade — behavior that a developer would have to guess at
 - **Ambiguities**: descriptions that could reasonably be interpreted in more than one way
 
-For each issue, **make a concrete assumption** rather than asking an open-ended question. State the assumption clearly so the human can approve or override with minimal effort. Use "I assume X" or "I recomend X" rather than "What should X be?". Only ask a direct question when there is genuinely no reasonable default.
+For each issue, **make a concrete assumption** rather than asking an open-ended question. State the assumption clearly so the human can approve or override with minimal effort. Use "I assume X" or "I recommend X" rather than "What should X be?". Only ask a direct question when there is genuinely no reasonable default.
 
 Update the feature document based on your corrections/assumptions.
 

@@ -1,0 +1,11 @@
+{
+  "name": "jamie",
+  "version": "0.1.0",
+  "description": "Jamie Kawabata's public skills and prompts for Claude Code.",
+  "author": {
+    "name": "Jamie Kawabata",
+    "email": "vector76@gmail.com"
+  },
+  "repository": "https://github.com/vector76/skills-public",
+  "keywords": ["skills", "prompts"]
+}

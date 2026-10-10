@@ -1,0 +1,11 @@
+# Shell scripts must use LF endings, even when committed from Windows — a CRLF
+# in the shebang breaks `#!/usr/bin/env bash` on macOS/Linux.
+*.sh text eol=lf
+
+# Markdown, JSON, and YAML: normalize to LF in the repo.
+*.md text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+
+# cmd batch files use CRLF: cmd mis-parses some LF files.
+*.cmd text eol=crlf

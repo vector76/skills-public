@@ -2,7 +2,7 @@
 
 Every LLM state and every script state produces an output containing exactly one transition tag (with the multi-`<fork>` exception noted below). This page is the reference for picking and writing each tag.
 
-> Cheat sheet lives in [SKILL.md](SKILL.md). Return-stack and `{{input}}` mechanics live in [protocol.md](protocol.md).
+> Cheat sheet lives in [SKILL.md](../SKILL.md). Return-stack and `{{input}}` mechanics live in [protocol.md](protocol.md).
 
 ## What the LLM sees
 

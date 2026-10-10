@@ -117,7 +117,7 @@ TRY:
     - { tag: goto, target: FAIL }
 ```
 
-DONE and FAIL are elided here; each is a single-`<result>` state whose prompt must explicitly instruct the model to emit `<result>...</result>` — see `examples/retry-loop.yaml` for the full version.
+DONE and FAIL are elided here; each is a single-`<result>` state whose prompt must explicitly instruct the model to emit `<result>...</result>` — see `../examples/retry-loop.yaml` for the full version.
 
 For deterministic counters or sleeps, use a `sh` state between LLM attempts so you don't burn tokens on arithmetic.
 
@@ -161,7 +161,7 @@ JOIN:
     - { tag: goto, target: REPORT }
 ```
 
-There is no built-in barrier. Either (a) script-poll the filesystem from a `sh` JOIN state, or (b) have workers signal completion via `<ask>`-style coordination via daemon mode. Filesystem polling is the simpler default. See `examples/fan-out-fan-in.yaml`.
+There is no built-in barrier. Either (a) script-poll the filesystem from a `sh` JOIN state, or (b) have workers signal completion via `<ask>`-style coordination via daemon mode. Filesystem polling is the simpler default. See `../examples/fan-out-fan-in.yaml`.
 
 ## Human-review gate
 
@@ -206,7 +206,7 @@ ESCALATE:
     - { tag: result }
 ```
 
-Run with `ray serve` for HTTP/MCP-delivered responses, or `ray --on-ask=pause workflow.yaml` and resume with `ray --resume <id> --input "approve"`. See `examples/human-review-gate.yaml`.
+Run with `ray serve` for HTTP/MCP-delivered responses, or `ray --on-ask=pause workflow.yaml` and resume with `ray --resume <id> --input "approve"`. See `../examples/human-review-gate.yaml`.
 
 ## File upload then process
 

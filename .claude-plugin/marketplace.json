@@ -1,0 +1,15 @@
+{
+  "name": "vector76-skills-public",
+  "owner": {
+    "name": "Jamie Kawabata",
+    "email": "vector76@gmail.com"
+  },
+  "description": "Jamie Kawabata's public Claude Code plugins.",
+  "plugins": [
+    {
+      "name": "jamie",
+      "source": "./plugins/jamie",
+      "description": "Jamie Kawabata's public skills and prompts for Claude Code."
+    }
+  ]
+}
