@@ -150,12 +150,12 @@ What each one is:
   every Claude Code session is closed, and that leaving it doesn't get in the
   way of a reinstall.
 - **`FORCE_AUTOUPDATE_PLUGINS`** in the `env` of `~/.claude/settings.json`.
-  `INSTALL_JAMIE_PLUGIN.md` adds it, but it isn't specific to this
-  marketplace: under the desktop app, it lets *every* third-party marketplace
-  update its plugins, and there's no record of who added it. If step 0 listed
-  other third-party marketplaces, recommend keeping it. Otherwise, removing it
-  is part of a clean slate, and lets a test of `INSTALL_JAMIE_PLUGIN.md` add it
-  again in its step 3.
+  The user may have added it to get this plugin's updates automatically, as
+  the README describes, but it isn't specific to this marketplace: under the
+  desktop app, it lets *every* third-party marketplace update its plugins, and
+  there's no record of who added it or why. If step 0 listed other
+  third-party marketplaces, recommend keeping it. Otherwise, offer to remove
+  it, without recommending either way.
 
 Show what was found. Ask which to delete, and wait for a clear answer.
 
@@ -203,8 +203,8 @@ Tell the user:
 - **Sessions that are already open still have the plugin**, this one
   included, until they are closed or run `/reload-plugins`. New sessions start
   without it.
-- For a clean slate: `INSTALL_JAMIE_PLUGIN.md` installs everything again from
-  scratch, including the auto-update settings. Its prompt is in
+- For a clean slate: `INSTALL_JAMIE_PLUGIN.md` installs the plugin again
+  from scratch. Its prompt is in
   <https://github.com/vector76/skills-public/blob/main/oneshot/README.md>.
 
 ## Notes for maintainers

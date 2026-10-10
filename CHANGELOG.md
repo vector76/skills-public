@@ -12,6 +12,14 @@ Name the effect on the skills, not the files touched.
 
 ## 2026-10-10
 
+- **jamie 0.2.0:** new `/jamie:update`. It updates the plugin to its latest
+  published version, reports the old and new versions, and says whether the
+  session needs `/reload-plugins`. It never changes auto-update settings; the
+  install runbook no longer turns auto-update on either, so that is left to
+  you.
+
+## 2026-10-10
+
 - **jamie 0.1.0:** first release as an installable plugin, from the
   `vector76-skills-public` marketplace. The skills are now invoked as
   `/jamie:check-again`, `/jamie:draw-the-owl`, and `/jamie:ray-workflows`.

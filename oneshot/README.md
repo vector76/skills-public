@@ -40,8 +40,8 @@ Download https://raw.githubusercontent.com/vector76/skills-public/main/oneshot/I
 ## Install the jamie plugin
 
 [INSTALL_JAMIE_PLUGIN.md](INSTALL_JAMIE_PLUGIN.md). Installs the `jamie`
-plugin from the `vector76-skills-public` marketplace and turns on the two
-settings auto-update needs. On an existing install it checks those settings.
+plugin from the `vector76-skills-public` marketplace. Once it is installed,
+`/jamie:update` updates it whenever you run it.
 
 ```
 Download https://raw.githubusercontent.com/vector76/skills-public/main/oneshot/INSTALL_JAMIE_PLUGIN.md verbatim, read all of it, and tell me what it will change on this machine and anything that looks risky or out of place. Wait for my go-ahead, then follow the copy you downloaded.

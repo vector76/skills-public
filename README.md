@@ -9,6 +9,7 @@ Jamie Kawabata's public Claude Code plugins, published as the marketplace
 |---|---|
 | `/jamie:check-again` | Asks Claude to take a second look at the work so far for mistakes or a better approach, and fix what it finds. |
 | `/jamie:draw-the-owl <document>` | Fills the gaps in an underspecified feature document, updates it, and lists each assumption it made, most significant first, for you to approve. Stops before implementing. |
+| `/jamie:update` | Updates this plugin to its latest published version, and says whether the session needs `/reload-plugins`. |
 | `ray-workflows` | Guidance for writing Raymond (`ray`) workflows. Claude loads it on its own when you work on one; `/jamie:ray-workflows` loads it explicitly. |
 
 ## Install
@@ -25,23 +26,27 @@ For one project only, run both commands inside that project with
 
 ## Staying up to date
 
-Claude Code can update plugins by itself, but for a third-party marketplace
-like this one, auto-update is **off by default**. To turn it on, open
-`/plugin`, go to the marketplaces list, and enable auto-update for
-`vector76-skills-public`. In the desktop app, which has no toggle for it, add
-`"autoUpdate": true` to this marketplace's entry under
-`extraKnownMarketplaces` in `~/.claude/settings.json`. The desktop app also
-starts sessions with the auto-updater disabled, which blocks plugin updates
-unless `"FORCE_AUTOUPDATE_PLUGINS": "1"` is set in that file's `env` object.
-
-To update by hand:
+Run `/jamie:update` in any session to update to the latest version. Or by
+hand:
 
 ```bash
 claude plugin marketplace update vector76-skills-public
 claude plugin update jamie@vector76-skills-public
 ```
 
-Then start a new session.
+Then type `/reload-plugins`, or start a new session.
+
+Claude Code can also update plugins by itself, but for a third-party
+marketplace like this one, auto-update is **off by default**, and turning it
+on is your call: later changes then arrive without you looking at them. To
+turn it on, open `/plugin`, go to the marketplaces list, and enable
+auto-update for `vector76-skills-public`. In the desktop app, which has no
+toggle for it, add `"autoUpdate": true` to this marketplace's entry under
+`extraKnownMarketplaces` in `~/.claude/settings.json`. The desktop app also
+starts sessions with the auto-updater disabled, which blocks plugin updates
+unless `"FORCE_AUTOUPDATE_PLUGINS": "1"` is set in that file's `env` object.
+That setting applies to every third-party marketplace you have, not just this
+one.
 
 ## Runbooks
 
