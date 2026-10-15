@@ -16,6 +16,17 @@ file.
 Download https://raw.githubusercontent.com/vector76/skills-public/main/oneshot/CLAUDE_SETTINGS.md verbatim, read all of it, and tell me what it will change on this machine and anything that looks risky or out of place. Wait for my go-ahead, then follow the copy you downloaded.
 ```
 
+## Block Co-Authored-By in commits
+
+[BLOCK_COAUTHOR.md](BLOCK_COAUTHOR.md). Makes git reject any commit whose
+message has a `Co-Authored-By:` line, in every repository, with a global
+config-based `commit-msg` hook that runs alongside each repository's own
+hooks. Needs Git 2.54 or newer, and offers to upgrade git first.
+
+```
+Download https://raw.githubusercontent.com/vector76/skills-public/main/oneshot/BLOCK_COAUTHOR.md verbatim, read all of it, and tell me what it will change on this machine and anything that looks risky or out of place. Wait for my go-ahead, then follow the copy you downloaded.
+```
+
 ## Install the Claude Code CLI
 
 [INSTALL_CLAUDE_CLI.md](INSTALL_CLAUDE_CLI.md). Installs the `claude`
