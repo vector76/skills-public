@@ -9,3 +9,4 @@
 
 # cmd batch files use CRLF: cmd mis-parses some LF files.
 *.cmd text eol=crlf
+*.bat text eol=crlf

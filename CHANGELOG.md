@@ -10,6 +10,18 @@ line for each plugin it ships:
 Each plugin has its own version, so a release lists only the plugins it bumped.
 Name the effect on the skills, not the files touched.
 
+## 2026-10-18
+
+- **jamie 0.3.0:** new `/jamie:systematic-code-review`, which runs a
+  resumable, usage-throttled audit of a large codebase with one Opus subagent
+  per unit, adversarial verification of the serious findings, and a browseable
+  HTML site that links each finding to its line on Azure DevOps or GitHub. New
+  `/jamie:rebase-findings`, which moves a delivered review to a newer commit:
+  it re-anchors every reference, re-checks the findings the new commits could
+  affect, and reviews the new code. Both need Windows with PowerShell. The
+  review's usage throttle can use the cc_usage_dashboard tray app, another
+  usage script, or no usage gate at all.
+
 ## 2026-10-10
 
 - **jamie 0.2.0:** new `/jamie:update`. It updates the plugin to its latest

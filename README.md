@@ -10,6 +10,8 @@ Jamie Kawabata's public Claude Code plugins, published as the marketplace
 | `/jamie:check-again` | Asks Claude to take a second look at the work so far for mistakes or a better approach, and fix what it finds. |
 | `/jamie:draw-the-owl <document>` | Fills the gaps in an underspecified feature document, updates it, and lists each assumption it made, most significant first, for you to approve. Stops before implementing. |
 | `/jamie:update` | Updates this plugin to its latest published version, and says whether the session needs `/reload-plugins`. |
+| `/jamie:systematic-code-review` | Runs a deep, resumable audit of a whole codebase or subsystem: one Opus subagent per unit, a second agent that tries to refute each serious finding, a tiered summary, and an HTML site linking every finding to its line on Azure DevOps or GitHub. Asks before it starts sweeping; Windows only. |
+| `/jamie:rebase-findings` | Moves a delivered `systematic-code-review` to a newer commit: re-anchors every reference, re-checks the findings the new commits could affect, and reviews the new code. Asks once, then leaves one uncommitted diff. |
 | `ray-workflows` | Guidance for writing Raymond (`ray`) workflows. Claude loads it on its own when you work on one; `/jamie:ray-workflows` loads it explicitly. |
 
 ## Install
