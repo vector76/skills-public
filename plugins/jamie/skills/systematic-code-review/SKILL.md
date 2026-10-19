@@ -50,9 +50,10 @@ same time.
   Every parameter below is already recorded in that directory. Don't ask for
   any of them again.
 - **Recording dispositions** on a delivered review, such as marking findings
-  fixed or planned, or reconciling a private `fix-light` or `fix-seam` run
-  once its fixes have merged: ask for the review directory, then go to *After
-  delivery: recording dispositions* below. Nothing else in this playbook runs.
+  fixed or planned, or reconciling a private `fix-findings`, `fix-light` or
+  `fix-seam` run once its fixes have merged: ask for the review directory,
+  then go to *After delivery: recording dispositions* below. Nothing else in
+  this playbook runs.
 - **New**: ask for everything below. Once the output location is known, check
   it. **If `<review dir>/backlog.md` already exists, stop**: a review is already
   there. Ask whether to resume it or choose another location. Never build a
@@ -600,11 +601,13 @@ not start any of them as part of a review:
 - `relationships.md` — which findings share a root cause or interact.
 - `fix-campaign/` — turning confirmed findings into sequenced, ticketed work.
   Its results are recorded as dispositions, as above.
-- Fixing findings — the `fix-light` skill fixes findings with a Trivial or
-  Low fix rated RGR Unit or `Seam (local)`, and `Seam (harness)` ones once
-  their harness is in. The `fix-seam` skill builds the harness an `X-`
-  finding names. A private run of either is recorded by reconciling, as
-  above.
+- Fixing findings — the `fix-findings` skill fixes any of them, by ID, by
+  filter or all, one at a time and unattended after one go-ahead: harnesses,
+  seams, red-green fixes, and fixes no test can prove. The `fix-light` skill
+  fixes findings with a Trivial or Low fix rated RGR Unit or `Seam (local)`,
+  and `Seam (harness)` ones once their harness is in. The `fix-seam` skill
+  builds the harness an `X-` finding names. A private run of any of them is
+  recorded by reconciling, as above.
 - Moving the review to a newer commit — the `rebase-findings` skill
   re-anchors every reference to the new pin, re-evaluates the findings the
   new commits could affect, and reviews the new code.

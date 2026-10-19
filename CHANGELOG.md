@@ -10,6 +10,18 @@ line for each plugin it ships:
 Each plugin has its own version, so a release lists only the plugins it bumped.
 Name the effect on the skills, not the files touched.
 
+## 2026-10-19
+
+- **jamie 0.4.0:** new `/jamie:fix-findings`, which fixes findings from a
+  `systematic-code-review` one at a time in the current session: chosen by
+  ID, by filter, or all of them, of any severity, Fix impact or RGR,
+  cross-cutting `X-` harnesses included. Each fix is red-green where a test
+  can prove it, checked by a fresh agent and fresh-eyes review rounds, and
+  committed on a local run branch, prerequisites first. Every question comes
+  before one go-ahead, the usage throttle paces each task, and a stopped run
+  resumes from disk. `/jamie:systematic-code-review` now points to it, and
+  reconciles its private runs as it does fix-lanes runs.
+
 ## 2026-10-18
 
 - **jamie 0.3.1:** `/jamie:systematic-code-review` fixes from its first full run.

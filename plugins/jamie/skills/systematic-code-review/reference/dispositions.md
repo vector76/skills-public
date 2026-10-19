@@ -69,7 +69,8 @@ Record from something the user gives or points to, not from memory:
   are.
 - **Tickets** — the IDs the user gives, or an export they point to. Record the
   reference only. Don't copy ticket content into the review.
-- **A private `fix-light` or `fix-seam` run** — reconcile it, as below.
+- **A private `fix-light`, `fix-seam`, `fix-lanes` or `fix-findings` run**
+  — reconcile it, as below.
 
 ## Reconciling a private fix run
 
@@ -151,6 +152,10 @@ its rows by outcome:
   `Not a defect — refuted by fix run: <evidence>`, or
   `Fixed — already present when the fix run reached it — <where>`.
 - **Bounced and blocked** rows are never reconciled.
+
+**A `fix-findings` run** writes the same queue and records as a `fix-lanes`
+run, in `fixes/<run>/`, without the Lane and Run sha columns. Reconcile it
+the same way.
 
 ## After recording
 
