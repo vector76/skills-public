@@ -6,8 +6,10 @@ They set the renderer's module state by hand, so no repository or review
 directory is needed; only the `markdown` package the renderer imports.
 """
 
+import json
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -143,6 +145,15 @@ class Context(unittest.TestCase):
         c = rr.context_for("- **File:** apps/web/src/x.ts:1\n", rr.REVIEW)
         self.assertEqual(c["subproject"], "apps/web/src/")
         self.assertEqual(c["files"], ["apps/web/src/x.ts"])
+
+    def test_empty_subprojects_reads_as_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "render.json"), "w", encoding="utf-8") as fh:
+                json.dump({"title": "t", "home_repo": "r", "subprojects": [],
+                           "repos": {"r": {"root": ".", "links": False}}}, fh)
+            rr.load_config(d)
+        self.assertEqual(rr.REVIEW["subprojects"], ("",))
+        self.assertEqual(rr.context_for("no file lines\n", rr.REVIEW)["subproject"], "")
 
     def test_finding_files_maps_each_finding_to_its_own_file(self):
         text = ("### U01-1: a\n- **File:** apps/one.ts:5\n- **Severity:** Low\n"

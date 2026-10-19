@@ -84,6 +84,13 @@ sorted by severity Critical→Low, ties by confidence High→Low. In every
 with forward slashes. After a rated level, write a space and an em dash, then
 the reason: `Unit — <boundary>`, never `Unit: <boundary>`.
 
+Every finding carries these bullets, in this order, each exactly once:
+**File**, **Severity**, **Confidence**, **Category**, **Description**,
+**Suggested fix**, **Fix impact**, **RGR**, **Depends on** (only when there is
+one), **Status**. Category is one of: memory-safety | concurrency |
+error-handling | protocol-logic | resource-leak | arithmetic | initialization |
+api-misuse | security | style (never testability, which is for synthesis).
+
 End with a `## Coverage notes` section listing anything you could not fully
 assess and why. Start each such item with `Not assessed:`, so it can be found
 mechanically; other remarks need no prefix. Write it last, and only once every
@@ -127,4 +134,6 @@ and finding format are under `## Scales and finding format` in
 `<review dir>/README.md`, and the test harness under `## Test harness`; read
 them and apply them exactly as written." The README holds them verbatim, so the
 agent reads the same text. Everything else in this prompt, the per-unit
-emphasis above all, stays in the prompt itself.
+emphasis above all, stays in the prompt itself. That includes the list of
+required bullets: in one run, a reviewer given only the pointer left the
+Category bullet off every finding, and none drifted once the list was there.

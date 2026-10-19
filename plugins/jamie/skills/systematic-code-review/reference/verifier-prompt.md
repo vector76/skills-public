@@ -41,10 +41,14 @@ For EACH finding whose Severity is Critical, High, or Medium (ignore Low):
    - **CONFIRMED** — real; you can state the failing scenario yourself
    - **REFUTED** — wrong; cite the `file:line` of the guard or constraint
    - **UNCERTAIN** — unresolvable from code alone; say what would resolve it
-4. EDIT the findings doc in place, appending to that finding's bullet list:
+4. EDIT the findings doc in place. Add the verdict as a new line directly
+   after that finding's last bullet (its Status bullet, or Depends on if that
+   comes last), and before the blank line that separates it from the next
+   `### ` heading:
    `- **Verification:** CONFIRMED|REFUTED|UNCERTAIN — <1-2 sentence rationale with file:line evidence>`
 
-   For a REFUTED finding, also rewrite its Status bullet in place as
+   Never remove, merge or rewrite a blank line or a `### ` heading: every
+   finding keeps its own heading. For a REFUTED finding, also rewrite its Status bullet in place as
    `- **Status:** Not a defect — refuted at verification`. Leave the Status of
    CONFIRMED and UNCERTAIN findings as it is.
 

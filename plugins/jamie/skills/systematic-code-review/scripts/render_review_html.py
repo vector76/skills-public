@@ -180,7 +180,8 @@ def load_config(review_dir):
         "nav_label": cfg.get("nav_label", cfg["title"]),
         "page_prefix": cfg.get("page_prefix", cfg["title"]),
         "home_repo": cfg["home_repo"],
-        "subprojects": tuple(cfg.get("subprojects", [""])),
+        # an empty list means none, as a missing key does: context_for needs one to fall back on
+        "subprojects": tuple(cfg.get("subprojects") or [""]),
         "dir_roots": tuple(cfg.get("dir_roots", [])),
         "prefix_map": [(d, (repo, rp)) for d, repo, rp in cfg.get("prefix_map", [])],
     }

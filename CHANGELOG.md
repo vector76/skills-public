@@ -12,6 +12,16 @@ Name the effect on the skills, not the files touched.
 
 ## 2026-10-18
 
+- **jamie 0.3.1:** `/jamie:systematic-code-review` fixes from its first full run.
+  The HTML site no longer crashes when `render.json` gives `"subprojects": []`;
+  an empty list now means none, as leaving the key out does. Verifiers are told
+  exactly where the Verification bullet goes and that headings and blank lines
+  are never touched, after one deleted the next finding's heading. Reviewer
+  prompts list every required bullet and the allowed categories, which keeps
+  the shortened prompt from dropping one.
+
+## 2026-10-18
+
 - **jamie 0.3.0:** new `/jamie:systematic-code-review`, which runs a
   resumable, usage-throttled audit of a large codebase with one Opus subagent
   per unit, adversarial verification of the serious findings, and a browseable
