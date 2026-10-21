@@ -10,6 +10,21 @@ line for each plugin it ships:
 Each plugin has its own version, so a release lists only the plugins it bumped.
 Name the effect on the skills, not the files touched.
 
+## 2026-10-21
+
+- **jamie 0.5.0:** `/jamie:fix-findings` fixes from its first runs. It can
+  run directly on the branch you have checked out (`--in-place`) and make one
+  commit per finding (`--commits one`). In private mode it marks each fixed
+  finding in the review as soon as the fix is committed, naming the branch and
+  commits, and re-renders the review site after every fix;
+  `/jamie:systematic-code-review`'s reconcile later records where it landed.
+  A bounced finding comes back through a follow-up run (`init --like`) that
+  reuses the earlier run's settings. Fixers are told their red test must
+  build without the fix. Go projects are supported: a package-level target
+  command and a bundled related-tests command. The checks on a fix and on a
+  review round, and filling in each subagent's prompt, are now script
+  commands, so every run applies them the same way.
+
 ## 2026-10-19
 
 - **jamie 0.4.0:** new `/jamie:fix-findings`, which fixes findings from a
