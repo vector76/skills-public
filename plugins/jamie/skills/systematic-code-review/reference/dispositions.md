@@ -155,7 +155,21 @@ its rows by outcome:
 
 **A `fix-findings` run** writes the same queue and records as a `fix-lanes`
 run, in `fixes/<run>/`, without the Lane and Run sha columns. Reconcile it
-the same way.
+the same way, with one difference: such a run already set each fixed
+finding's Status as it finished it, as
+`Fixed — not yet landed: <local sha>[, …] on <branch> — …`, so the review
+shows what is done and no later run takes it again. Its dispositions (gone,
+not a defect, present) are final and need nothing here.
+
+- **Landed**: rewrite the Status in the landed form above, replacing the
+  `not yet landed` one entirely, since it is the same disposition, now
+  with the sha it landed as. Set `Landed` as above.
+- **Not yet landed**: leave the Status as it is, and set `Landed` to
+  `not yet`.
+- **Abandoned**, on the user's word: put the finding back to Open, keeping
+  the earlier Status after it:
+  `Open (was Fixed — not yet landed: … ; branch abandoned <date>)`. Set
+  `Landed` to `abandoned`. It can go into another run.
 
 ## After recording
 

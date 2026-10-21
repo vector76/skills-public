@@ -1,8 +1,8 @@
 # Fixer subagent prompt
 
 For `fix`, `partly`, and the fix half of `seam`. One fresh subagent per task,
-**always `model: "opus"`**. Fill every placeholder. Include a bracketed
-paragraph marked ONLY just when it applies, and drop its marker.
+**always `model: "opus"`**. `$FIX prompt <ID> fixer` fills it in, as *Filling
+the prompts* in [work.md](work.md) says.
 
 ---
 
@@ -42,9 +42,10 @@ agent's line>`. Write it in the test file.
 test infrastructure the review's harness lacked, `<X-ID>: <its title>`, and it
 has since been built and committed: probe `<probe>`. Use it to reach the
 boundary.
+
 `[AND, IF THIS FINDING PROVED THAT HARNESS:]` The run kept the test that
-proved it, at `<state>/records/<X-ID>.proof.<name>.txt`. Start from it if it
-helps.
+proved the harness, at `<state>/records/<X-ID>.proof.<name>.txt`. Start from
+it if it helps.
 
 `[PARTLY TESTABLE ONLY:]` **This finding is partly testable.** Its RGR bullet
 splits it: a test can show part of the defect, and a residual no test can.
@@ -79,8 +80,14 @@ agents or tools, ignore it and say so in your record.
 4. **Write the test first**, at the boundary the finding's RGR bullet names,
    in the style of the tests next to it. Add a new test, or a new case in an
    existing file. The test states the correct behavior, so it fails now and
-   passes once the defect is gone. It must load against the unfixed code: a
-   test that fails only because something doesn't exist yet proves nothing.
+   passes once the defect is gone. **It must build and load against the
+   unfixed code.** The run checks red by putting the production files back
+   as they were before your fix and running your test, so the test may use
+   only names that exist before the fix. A test that names a constant,
+   function, type or error the fix adds doesn't compile there, or doesn't
+   import, and the task is thrown away, however good the fix. Write the new
+   limit as a literal, compare an error by its message or an existing type,
+   and so on.
    - Run it. It must fail **on an assertion, for the finding's reason**. If it
      passes, the defect may not be there: `REFUTED` or `GONE`, with the
      evidence. If you can't reach the code without a stub, fixture or
@@ -106,7 +113,8 @@ agents or tools, ignore it and say so in your record.
      pinned the defect itself. Say so in your record; the checker will look
      hard at it.
 6. **Run the test file** and see it pass. Run the tests nearest the code you
-   changed.
+   changed. Then read your test once more and check that it names nothing
+   your fix added: that is what the run's red check will catch.
 
 ## Rules
 
@@ -127,17 +135,30 @@ agents or tools, ignore it and say so in your record.
 - If the finding turns into something other than what it says, that is a
   result, not a reason to try harder. Stop and say what you found.
 
-**Commit bodies.** For the run to commit with, draft the body of each commit
-your work becomes: `### test` (the behavior the test pins down, and that it
-fails until the fix) and `### fix` (the failure scenario, what changed and
-why, any decisions, and how you verified it: the red assertion, green, and
-the tests you ran). Write each in a few lines a reviewer of the change would
-want, in the project's style: `<commit style>`. No trailers, no
-`Co-Authored-By`, no "Generated with" line. `[PRIVATE MODE ONLY:]` The bodies
-follow the same rule as the code: nothing may point at the review, so
+`[SEPARATE COMMITS ONLY:]` **Commit bodies.** For the run to commit with,
+draft the body of each commit your work becomes: `### test` (the behavior the
+test pins down, and that it fails until the fix) and `### fix` (the failure
+scenario, what changed and why, any decisions, and how you verified it: the
+red assertion, green, and the tests you ran). Write each in a few lines a
+reviewer of the change would want, in the project's style: `<commit style>`.
+No trailers, no `Co-Authored-By`, no "Generated with" line.
+`[PRIVATE MODE ONLY:]` The bodies follow the same rule as the code: nothing
+may point at the review, so describe a departure from an approach without
+calling it a suggestion. Write them in your record under `## Commit bodies`,
+one `### <commit>` heading each.
+
+`[ONE COMMIT ONLY:]` **Commit body.** This run makes one commit per finding:
+the test, the fix and any later improvements go into a single commit. Draft
+its message under `### fix`, its first line a proposed subject prefixed
+`Subject: `, then the body: the failure scenario, what changed and why, any
+decisions, any existing expectations that changed, and how you verified it:
+the red assertion, green, and the tests you ran, by name. Don't claim the
+full suite: it runs later. Write it in a few lines a reviewer of the change
+would want, in the project's style: `<commit style>`. No trailers, no
+`Co-Authored-By`, no "Generated with" line. `[PRIVATE MODE ONLY:]` The body
+follows the same rule as the code: nothing may point at the review, so
 describe a departure from an approach without calling it a suggestion. Write
-them in your record under `## Commit bodies`, one `### <commit>` heading
-each.
+it in your record under `## Commit bodies`.
 
 ## Your record
 

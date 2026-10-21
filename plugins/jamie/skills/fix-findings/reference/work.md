@@ -14,20 +14,31 @@ line, and writes its reasoning to `<state>/records/<ID>.md`, which starts
 empty for each attempt (`next` moves earlier attempts aside). Read a record
 only to diagnose a failure or to fill in a commit or Status line.
 
-**Filling the prompts.** `<root>` and `<state>` (absolute paths), `<branch>`
-(the run branch), and `<pin>`, the test paths and `<commit style>` from
-`$FIX config`; the tracking mode; and `<run a test>` =
-`python "<state>/bin/fix_run.py" --root "<root>" exec target --file <test file> --test-name "<test name>"`,
-with `--test-name` optional. Subagents run tests through it, so every run
-uses the recorded command and leaves its output in a log. Include a prompt's
-bracketed paragraph only when it applies, and drop its marker:
+**Filling the prompts.** `$FIX prompt <ID> <role>` fills a prompt in from the
+run's state and writes it to `<state>/prompts/`. Roles: `fixer`, `seam`,
+`notest-fixer`, `builder`, `checker`, `harness-checker`, `reviewer` and
+`verifier`. It prints `spawn`: the one-line instruction to give the subagent,
+which reads the file itself. Spawn with exactly that, so that no prompt is
+paraphrased or trimmed from memory. Add to `spawn` only what the run knows
+and the prompt can't, such as which later findings in this run touch the
+same code.
 
-- **The user's note**, when the task has a `note`: every first subagent gets
-  it, verbatim.
-- **Re-rated**, when the task's `reason` starts `re-rated Seam (local)`: the
-  seam agent gets that reason.
-- **Prerequisites**, from `deps`: their IDs and titles, and for a harness its
-  probe and kept proof.
+- **What it fills**: the paths, the branch, the pin, the test paths and
+  commit style from `$FIX config`, `<run a test>` (which runs the recorded
+  command, so every run leaves its output in a log), the task's start, its
+  prerequisites with a harness's probe and kept proof, the user's note, a
+  re-rated task's reason, and for a checker the size and flags of the
+  uncommitted work.
+- **What you pass**: `--round <n>` for a reviewer, `--seam <sha>` and
+  `--seam-line "<line>"` (or `--seam-double`) after a seam agent,
+  `--proof-file <path>` for a harness checker, `--claim "<GONE|REFUTED|PRESENT>: <line>"`
+  for a verifier, and `--set <placeholder>=<value>` for anything else. It
+  refuses, naming them, when a value it needs is missing.
+- **What it keeps**: a paragraph marked `[… ONLY:]` only when it applies,
+  from the tracking mode, the commits setting, the task's kind, note,
+  prerequisites and reason. A marker that starts a paragraph or a list item
+  gates all of it; a marker inside a paragraph gates the rest of its
+  sentence. An edit to a prompt keeps to that.
 
 **Around every subagent**: note `<head>` = `git rev-parse HEAD` before you
 spawn it, and after it returns run `$FIX guard --head <head>` before
@@ -38,11 +49,11 @@ step as you reach it: `$FIX beat --step <step>`.
 
 | Kind | Finding | Steps |
 |---|---|---|
-| `fix` | `Unit`, or `Seam (harness)` with its harness done | fixer → checks → checker → commit test, commit fix → rounds → full suite → done |
+| `fix` | `Unit`, or `Seam (harness)` with its harness done | fixer → checks → checker → commit test, commit fix → rounds → (squash) → full suite → done |
 | `seam` | `Seam (local)` | seam agent → seam checks → commit seam → then as `fix` |
 | `partly` | `No — partly testable` | fixer, told to test the testable part → as `fix` |
-| `notest` | `No` | no-test fixer → no-test checks → checker → commit fix → rounds → full suite → done |
-| `harness` | `X-` | builder → harness checks → harness checker → commits → rounds → full suite → done |
+| `notest` | `No` | no-test fixer → no-test checks → checker → commit fix → rounds → (squash) → full suite → done |
+| `harness` | `X-` | builder → harness checks → harness checker → commits → rounds → (squash) → full suite → done |
 
 The prompts are in this folder: [fixer-prompt.md](fixer-prompt.md),
 [seam-prompt.md](seam-prompt.md), [notest-fixer-prompt.md](notest-fixer-prompt.md),
@@ -63,23 +74,38 @@ the tree), and commit with `git commit -F <file>`. Never a trailer or a
 "Generated with" line. A failing commit hook is a failed check: `env`, or the
 hook's own reason if it names one.
 
-**The Status line**, in committed mode: `$FIX set-status <ID> "<Status>"`
-rewrites the finding's Status bullet in place, keeping the doc's line
-endings, and prints the doc's path. Add that path to the commit the table in
-[tracking.md](tracking.md) names. Never edit a findings doc any other way.
+**The Status line**: `$FIX set-status <ID> "<Status>"` rewrites the
+finding's Status bullet in place, keeping the doc's line endings, and prints
+the doc's path. Never edit a findings doc any other way.
+
+- **Committed mode**: set it before the commit the table in
+  [tracking.md](tracking.md) names, and add the doc's path to that commit.
+- **Private mode**: set it right after `$FIX done` or `$FIX dispose`, in the
+  form the private table in [tracking.md](tracking.md) gives, with the
+  commits `done` printed. It goes in no commit of the project.
 
 ### fix and partly
 
 1. **Fixer** (`--step fixer`). Returns `READY test=<file>::<name>`, `GONE`,
    `REFUTED`, or `BOUNCE <category>`.
-2. **On READY**, run the checks on a fix, in their order (`--step checks`).
+2. **On READY**, run the checks on a fix (`--step checks`):
+   `$FIX check-fix <ID> --test <file>::<name>`. It runs them in their order,
+   as [checks.md](checks.md) gives them, and stops at the first failure with
+   its bounce `category` and `why`. On `ok`, read its `red_lines` and confirm
+   the test failed for the finding's reason, as the record's **Red** line
+   says; if it failed for another, bounce `no-red`. A step it marks
+   `flaky_suspect` failed once and passed on its rerun: name the test from
+   that log with `$FIX flaky`. A `regression` is for you to compare with
+   `<state>/baseline.md` and `<state>/flaky.md` before bouncing.
 3. **Checker** (`--step checker`). `ACCEPT` or `REJECT`. `REJECT` is a
    bounce, `rejected`.
-4. **On ACCEPT, commit twice**: the test files, then everything else the fix
-   changed. The first commit alone fails the test and the second passes it.
-   In committed mode, set the Status first, so it goes in the fix commit.
+4. **On ACCEPT, commit**: with `commits: separate`, twice, the test files
+   and then everything else the fix changed, so the first commit alone fails
+   the test and the second passes it; with `commits: one`, once, test and fix
+   together, from the fixer's `### fix` draft. In committed mode, set the
+   Status first, so it goes in the fix commit.
 5. **Review rounds**, below.
-6. **Full suite**, below.
+6. **Squash**, with `commits: one`, below. Then **Full suite**, below.
 7. **Done**, below, with outcome `fixed` (`fixed-partly` for `partly`) and
    `--test`.
 
@@ -90,8 +116,12 @@ endings, and prints the doc's path. Add that path to the commit the table in
 2. **On SEAM**, the seam checks. If they pass, commit the seam on its own,
    and note its sha. The fixer starts from it, so the red check runs against
    the refactored, unfixed code. That catches a refactor that hid the defect.
-3. **Then the `fix` pipeline**, with the fixer told about the seam commit, or
-   on `NONE` about the double.
+3. **Then the `fix` pipeline**, with the fixer told about the seam commit
+   (`$FIX prompt <ID> fixer --seam <sha> --seam-line "<line>"`), or on `NONE`
+   about the double (`--seam-double`). The fixer's checks compare with the
+   seam commit, which is `HEAD`; the improvement checks take
+   `--before <seam sha>`. With `commits: one`, the seam is squashed into the
+   finding's commit with the rest.
 
 ### notest
 
@@ -101,12 +131,13 @@ endings, and prints the doc's path. Add that path to the commit the table in
 3. **Checker**, with its no-test paragraph.
 4. **On ACCEPT, commit** the fix: any test files the fixer added first, as
    their own commit, then everything else, with the Status in committed mode.
+   With `commits: one`, all of it as one commit.
 5. **Review rounds**, then pick the **probe**: `<file>::<string>`, a
    distinctive string from the fix's added lines, absent from `<start>`
    (`git grep -F -c -e '<string>' <start>` finds nothing). With no test
    name, it is how the fix is found again after a squash merge.
-6. **Full suite**, then **Done**, with outcome `fixed-without-test` and
-   `--probe`.
+6. **Squash**, with `commits: one`; then **Full suite**, then **Done**, with
+   outcome `fixed-without-test` and `--probe`.
 
 ### harness
 
@@ -120,10 +151,15 @@ endings, and prints the doc's path. Add that path to the commit the table in
    tree: it fails until its dependent is fixed, and a failing test on the
    branch would break every later task's suite. Commit the production files
    as one commit and the test infrastructure as another, skipping either if
-   empty. In committed mode, the Status goes in the last of them.
+   empty; with `commits: one`, both as one commit, from the builder's
+   `### harness` draft. In committed mode, the Status goes in the last of
+   them.
 5. **Review rounds**, with the reviewer's harness paragraph and the kept
-   proof's path.
-6. **Full suite**, then **Done**, with outcome `harness`, `--probe`, and
+   proof's path. Their improvement checks take
+   `--proof <proof file>::<test name>`, so the kept proof is shown to fail
+   still.
+6. **Squash**, with `commits: one`; then **Full suite**, then **Done**, with
+   outcome `harness`, `--probe`, and
    `--proof "<dependent ID>: <test file>::<test name>"`. The proving
    dependent's fixer is later pointed at the kept proof.
 
@@ -149,7 +185,8 @@ agent's word is never enough, as for a verifier's REFUTED in the review:
      `not-a-defect` or `present` and `--evidence "<one clause>"`. It needs no
      full suite.
    - **Private mode**: `$FIX dispose <ID> gone|not-a-defect|present
-     "<evidence, one clause>"`. No commit.
+     "<evidence, one clause>"`, then set the Status in the review. No
+     commit.
 
 Either way, what waits on it is released.
 
@@ -172,17 +209,31 @@ For each round (`--step round<n>`):
    looks at all of the task's commits together, with fresh eyes, for mistakes
    or a better way, and changes only what is about this finding. It returns
    `NONE` or `CHANGED mistake|better`.
-2. **On CHANGED**, the checks on an improvement. If they pass, commit
-   everything it changed as one more commit. If any fails, roll back that
-   round only, with `$FIX discard --to-head`, and record
-   `rolled back: <check>`. The task goes on.
+2. **On CHANGED**, the checks on an improvement:
+   `$FIX check-round <ID> [--test <file>::<name>] [--before <seam sha>]
+   [--proof <file>::<name>]`, with `--test` for a task with a red-green test
+   and `--proof` for a harness. If they pass, commit everything it changed as
+   one more commit. If they fail, roll back that round only, with
+   `$FIX discard --to-head`, and record `rolled back: <check>`. The task goes
+   on.
 3. Log the round's result: `$FIX log "<ID> round <n>: <NONE | CHANGED
    mistake: … | CHANGED better: … | rolled back: <check>>"`. The report
    counts these. Keep count of the rounds that ran.
 
+## Squash
+
+With `commits: one`, after the review rounds and before the full suite:
+`$FIX squash <ID> --message <file>`. It folds the task's commits, a seam
+included, into one with that message, and checks the tree is unchanged. The
+message is the subagent's draft (`### fix`, or `### harness` for a builder),
+with what the rounds changed merged in from their `### round <n>` drafts, and
+corrected where your checks contradict it; write it to
+`<state>/records/<ID>.final.msg`. Squash before `done`, never after: `done`
+records the commits as they are, and refuses more than one in this mode.
+
 ## Full suite
 
-After the review rounds, before *Done*: the full `suite` and the `check`
+After the review rounds and any squash, before *Done*: the full `suite` and the `check`
 (`--step suite`), through `$FIX exec suite --log <ID>-suite` and
 `$FIX exec check --log <ID>-check`, under the regression rules in
 [checks.md](checks.md). Every earlier check ran only the tests related to the
@@ -215,7 +266,8 @@ record relies on, then records the task's commits and marks it done:
 - it saves `<state>/records/<ID>.final.patch`, what the task committed, for
   reconcile
 
-Then on to the next task.
+In private mode, then set the Status in the review, with the commits `done`
+printed. Then on to the next task.
 
 ## Bounces
 

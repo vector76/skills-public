@@ -32,7 +32,9 @@ question: show the same message and go on.
 On the go-ahead, for each task the user wants back:
 `$FIX requeue <ID> --note "<what the user decided>"`. What it blocked is
 released too, as far as its other prerequisites allow. Changing anything
-else, the commands or the scope, is a new run, not a resume.
+else, the commands or the scope, is a new run, not a resume. Requeue works
+only while the run is unfinished; once it has finished, bounced findings go
+in a follow-up run (*A follow-up run* in [../SKILL.md](../SKILL.md)).
 
 ## 3. Put the tree back where the run left it
 

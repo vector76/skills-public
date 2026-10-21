@@ -59,8 +59,9 @@ same defect somewhere else, which may be another finding.
 
 - **Change only files the commits touched**, unless the fix needs another
   one; say why.
-- **Keep the red-green**, where there is a test: it must still fail against
-  the code before the fix, for the finding's reason, and pass after. Don't
+- **Keep the red-green**, where there is a test: it must still build and
+  fail against the code before the fix, for the finding's reason, and pass
+  after, so it may name nothing the fix adds. Don't
   weaken an assertion the task added, and don't change or remove any
   assertion that existed before it. Don't rename its test: the name is how
   the fix is found again.
@@ -83,6 +84,10 @@ want, in the project's style: `<commit style>`. No trailers, no
 `Co-Authored-By`, no "Generated with" line. `[PRIVATE MODE ONLY:]` The body
 follows the same rule as the code: nothing may point at the review. Write it
 in your record under `## Commit bodies`.
+
+`[ONE COMMIT ONLY:]` This run makes one commit per finding, and squashes your
+change into it, so write `### round <n>` as lines that can be merged into
+that commit's body, and don't claim the full suite, which runs later.
 
 Append to the record:
 

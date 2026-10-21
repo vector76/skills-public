@@ -5,6 +5,10 @@ and agents are the same in both modes.
 
 ## Commit bodies, in both modes
 
+With `commits: one` (step 1 of the playbook), each finding ends as one
+commit: the bodies below for its test, fix, seam or harness, and rounds are
+merged into that commit's single body, which `$FIX squash` commits.
+
 Every commit has a subject and a body. The subject's form depends on the
 mode, below. The body tells a reader of the history what the task's record
 knows, so nobody has to find the record. Write it from the record, in the
@@ -73,7 +77,10 @@ many ran.
 **Commit subjects:** `seam(<ID>): expose <the boundary> for testing`,
 `test(<ID>): failing test for <title>`, `fix(<ID>): <title>`,
 `improve(<ID>): <one line>`, `harness(<ID>): <what it makes possible>`, and
-`docs(<ID>): <the disposition>`. Each with a body, as above.
+`docs(<ID>): <the disposition>`. Each with a body, as above. With
+`commits: one`, a finding's single commit is `fix(<ID>): <title>`, or
+`harness(<ID>): …` for an `X-` finding, and its body covers the test, the fix
+and what the rounds changed.
 
 The run's own record, the queue and the task records, is committed once, at
 step 6.
@@ -120,10 +127,35 @@ nothing in it may point at the review.
 - an improvement: `fix:` for a mistake, `test:` or `refactor:` for a better
   way
 
-**Status is not written.** Every finding stays Open in the review until
-reconcile. The queue in `<review dir>/fixes/<run>/queue.md` records what
-reconcile needs: the outcome, the test as `<file>::<name>` or the probe as
-`<file>::<string>`, and the commits. Test names and probes must be
-distinctive, because they are how a fix is found after a squash merge.
-Dispositions (gone, not a defect, present) are recorded in the queue with
-their evidence, for reconcile to write.
+**Status is written in the review, after the fact.** Once a task is done
+(`$FIX done`) or disposed (`$FIX dispose`), `$FIX set-status` rewrites its
+finding's Status in the review, which is outside the project, so nothing in
+a commit points at it. A finding is marked Fixed as soon as its fix is
+committed on the run branch, before it is pushed or merged, so the review
+shows what has been done and no later run takes it again. Until it lands,
+its Status says so, naming the branch and the local commits, written plain
+rather than in backticks: the renderer links a backticked sha and warns that
+one no remote has would 404.
+
+| Outcome | Status |
+|---|---|
+| fixed | `Fixed — not yet landed: <sha>[, <sha>…] on <branch> — <what changed>; red-green: <test file>::<test name>` |
+| fixed-partly | as fixed, then `; residual not checked by a test: <the residual>, reviewed by a checker and fresh-eyes rounds` |
+| fixed-without-test | `Fixed — not yet landed: <sha>[, …] on <branch> — <what changed>; fixed without a test, reviewed by a checker and fresh-eyes rounds` |
+| harness | `Fixed — not yet landed: <sha>[, …] on <branch> — <the harness>; proven: <dependent ID>'s test fails for its reason` |
+| gone, not-a-defect, present | as in committed mode, from the disposition's evidence |
+
+The confirmation notes are the same as in committed mode. The shas are the
+task's commits, from `$FIX done`. Reconcile, in the review skill's
+dispositions reference, later replaces `not yet landed: …` with the landed
+sha, or puts the finding back to Open if its branch is abandoned.
+
+The queue in `<review dir>/fixes/<run>/queue.md` keeps what reconcile needs:
+the outcome, the test as `<file>::<name>` or the probe as `<file>::<string>`,
+and the commits. Test names and probes must be distinctive, because they are
+how a fix is found after a squash merge.
+
+The changed findings docs are committed in the review's own repository with
+the run's record, at the end (step 6). The guard leaves out the run's own
+Status rewrites, as it does in committed mode: `set-status` takes a fresh
+snapshot after each one.

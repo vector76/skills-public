@@ -42,6 +42,9 @@ ROUNDS = {"default": 1, "uncertain": 2, "harness": 3, "notest": 3}
 OUTCOMES = ("fixed", "fixed-partly", "fixed-without-test", "harness",
             "gone", "not-a-defect", "present")
 DISPOSITIONS = ("gone", "not-a-defect", "present")
+# What `init --like` takes from an earlier run of the same review.
+LIKE_KEYS = ("commands", "test_globs", "commit_style", "name_is_regex", "workers", "commits")
+LIKE_FILE = "review-context.md"
 
 # Task statuses. done releases dependents; bounced and blocked never do.
 PENDING, ACTIVE, DONE, BOUNCED, BLOCKED = "pending", "in-progress", "done", "bounced", "blocked"
@@ -282,8 +285,8 @@ def queue_rows(path):
 
 def prior_run_fixed(review_dir, root, base, fid):
     """Private mode: some earlier fix run fixed it, and its test or probe is in
-    the base. Status stays Open until reconcile, so this is the only way to see
-    it."""
+    the base. A run made before private mode wrote Status left the finding
+    Open, so its queue is the only way to see it."""
     fixes = os.path.join(review_dir, "fixes")
     if not os.path.isdir(fixes):
         return False
@@ -577,6 +580,24 @@ def name_filter(cfg, name):
     return name.replace('"', "").replace("%", "")
 
 
+def file_dir(f):
+    """The folder of a test file, relative to the code root with forward
+    slashes, "." for the root: for runners that take a package or folder
+    rather than a file, such as `go test ./{dir}`."""
+    d = os.path.dirname((f or "").replace("\\", "/").strip("/"))
+    return d or "."
+
+
+def fill_template(tpl, cfg, file, test_name, files):
+    workers = cfg.get("workers") if isinstance(cfg.get("workers"), int) and cfg["workers"] > 0 \
+        else (os.cpu_count() or 2)
+    return (tpl.replace("{file}", file or "")
+            .replace("{dir}", file_dir(file))
+            .replace("{name}", name_filter(cfg, test_name))
+            .replace("{files}", " ".join(quote_path(f) for f in (files or [])))
+            .replace("{workers}", str(workers)))
+
+
 def quote_path(f):
     """Always quoted, so cmd.exe can't read &, |, ( or spaces in a path as
     syntax."""
@@ -677,12 +698,47 @@ def write_throttle(bin_dir, gate):
                  ")\n" + call)
 
 
+def prior_run_state(run, name):
+    """The state folder of an earlier, finished run in this repository: the
+    current one if it is that run, or its archive."""
+    if run.exists() and run.cfg().get("run") == name and run.cfg().get("finished"):
+        return run.state
+    p = os.path.join(run.base_dir, "finished-" + name)
+    return p if os.path.isfile(os.path.join(p, "run.json")) else None
+
+
 def cmd_init(a, run):
+    a.commits_given = a.commits is not None
+    a.commits = a.commits or "separate"
     if run.exists() and not run.cfg().get("finished"):
         die("a run is already live here; one run per repository at a time", run=run.cfg()["run"])
     review = os.path.abspath(a.review)
     root = run.root
     base = git(root, "rev-parse", a.base)
+    if a.in_place:
+        # The run works on the branch that is checked out, committing to it directly, as a
+        # project that commits straight to its main branch asks.
+        cur = git(root, "symbolic-ref", "-q", "--short", "HEAD", check=False)
+        if cur.returncode != 0:
+            die("--in-place needs a branch checked out, not a detached HEAD")
+        here_branch = cur.stdout.strip()
+        if a.branch and a.branch != here_branch:
+            die("--in-place runs on the branch checked out; --branch names another",
+                checked_out=here_branch, branch=a.branch)
+        if base != git(root, "rev-parse", "HEAD"):
+            die("--in-place starts at the branch's tip: --base must be HEAD")
+        a.branch = here_branch
+    elif not a.branch:
+        die("--branch is required, or --in-place to run on the branch checked out")
+    like = None
+    if a.like:
+        like = prior_run_state(run, a.like)
+        if like is None:
+            die("no finished run of that name in this repository to take settings from",
+                run=a.like, looked_in=run.base_dir)
+        if os.path.normcase(os.path.abspath(read_json(os.path.join(like, "run.json"), {})
+                                            .get("review_dir", ""))) != os.path.normcase(review):
+            die("the run to take settings from is of another review", run=a.like)
     findings = parse_findings(review)
     wanted = [x.strip() for x in (a.ids or "").replace(" ", ",").split(",") if x.strip()]
     unknown = [x for x in wanted if x not in findings]
@@ -835,6 +891,10 @@ def cmd_init(a, run):
         else os.path.join(run.state, "queue.md")
     if os.path.exists(run_dir):
         die("the review already has a fix run of this name; pick another run name", run_dir=run_dir)
+    summary["branch"] = a.branch + (" (in place: the branch checked out)" if a.in_place else "")
+    summary["commits"] = a.commits
+    if like:
+        summary["settings_from"] = {"run": a.like, "copies": list(LIKE_KEYS) + [LIKE_FILE]}
     if a.dry_run:
         out({"dry_run": True, **summary,
              "excluded_list": {k: excluded[k] for k in sorted(excluded, key=id_sort_key)}})
@@ -848,6 +908,8 @@ def cmd_init(a, run):
         if os.path.exists(archive):
             die("an archive of the previous run is in the way", path=archive)
         os.rename(run.state, archive)
+        if like and os.path.normcase(like) == os.path.normcase(run.state):
+            like = archive
     for d in (run.state, os.path.join(run.state, "briefs"), run.records,
               os.path.join(run.state, "logs"), os.path.join(run.state, "bin"), run_dir):
         os.makedirs(d, exist_ok=True)
@@ -857,6 +919,11 @@ def cmd_init(a, run):
     shutil.copy2(os.path.abspath(__file__), os.path.join(bin_dir, "fix_run.py"))
     import review_format
     shutil.copy2(review_format.__file__, os.path.join(bin_dir, "review_format.py"))
+    shutil.copy2(os.path.join(HERE, "go_related.py"), os.path.join(bin_dir, "go_related.py"))
+    prompts_dir = os.path.join(bin_dir, "prompts")
+    os.makedirs(prompts_dir, exist_ok=True)
+    for role in PROMPTS:
+        shutil.copy2(os.path.join(HERE, "..", "reference", f"{role}-prompt.md"), prompts_dir)
     write_throttle(bin_dir, a.gate)
 
     cfg = {
@@ -865,11 +932,23 @@ def cmd_init(a, run):
         "ids": wanted, "with_prereqs": a.with_prereqs,
         "filters": {"include": a.include or [], "exclude": a.exclude or []},
         "gate": a.gate, "queue_path": queue_path, "rounds": ROUNDS,
+        "in_place": bool(a.in_place), "commits": a.commits,
         "commands": {"target": "", "related": "", "suite": "", "check": "", "install": ""},
         "workers": None, "test_globs": [], "commit_style": "", "name_is_regex": True,
         "env_streak": 0, "suite_tree": None, "suite_exit": None, "baseline_done": False,
         "finished": False,
     }
+    if like:
+        # A follow-up run keeps the earlier run's commands and conventions,
+        # which the user already approved, and its copy of the review context.
+        prev = read_json(os.path.join(like, "run.json"), {})
+        for k in LIKE_KEYS:
+            if k in prev and not (k == "commits" and a.commits_given):
+                cfg[k] = prev[k]
+        cfg["settings_from"] = a.like
+        src = os.path.join(like, LIKE_FILE)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(run.state, LIKE_FILE))
     run.save_cfg(cfg)
     run.save_tasks({"tasks": tasks, "excluded": excluded})
 
@@ -1056,24 +1135,24 @@ def cmd_beat(a, run):
 
 
 def cmd_exec(a, run):
+    out(run_exec(run, a.which, a.file, a.test_name, a.files, a.log, a.tail))
+
+
+def run_exec(run, which, file=None, test_name=None, files=None, log_name=None, tail_lines=15):
+    """Run a recorded command, write its output to a log, and return the result."""
     cfg = run.cfg()
-    which, fallback = a.which, None
-    if which == "related" and (not cfg["commands"].get("related") or not a.files):
+    fallback = None
+    if which == "related" and (not cfg["commands"].get("related") or not files):
         which, fallback = "suite", ("no related command" if not cfg["commands"].get("related")
                                     else "no changed files given")
     tpl = cfg["commands"].get(which) or ""
     if not tpl:
-        out({"result": "no-command", "which": which})
-    workers = cfg.get("workers") if isinstance(cfg.get("workers"), int) and cfg["workers"] > 0 \
-        else (os.cpu_count() or 2)
-    cmdline = (tpl.replace("{file}", a.file or "")
-               .replace("{name}", name_filter(cfg, a.test_name))
-               .replace("{files}", " ".join(quote_path(f) for f in (a.files or [])))
-               .replace("{workers}", str(workers)))
+        return {"result": "no-command", "which": which, "exit": None}
+    cmdline = fill_template(tpl, cfg, file, test_name, files)
     head = git(run.root, "rev-parse", "HEAD")
     logdir = os.path.join(run.state, "logs")
     os.makedirs(logdir, exist_ok=True)
-    log = os.path.join(logdir, (a.log or f"{which}-{int(time.time())}") + ".log")
+    log = os.path.join(logdir, (log_name or f"{which}-{int(time.time())}") + ".log")
     run.touch_lock()
     env = dict(os.environ)
     # A Python test runner writing to a redirected log would otherwise use
@@ -1090,7 +1169,7 @@ def cmd_exec(a, run):
         fh.write(f"\n[fix-findings] {which}: exit {p.returncode} after {seconds} s, "
                  f"started {started}\n")
     with open(log, encoding="utf-8", errors="replace") as fh:
-        tail = fh.read().splitlines()[-a.tail:]
+        tail = fh.read().splitlines()[-tail_lines:]
     res = {"which": which, "exit": p.returncode, "seconds": seconds, "log": log, "tail": tail}
     if fallback:
         res["fallback"] = f"ran the full suite: {fallback}"
@@ -1104,7 +1183,7 @@ def cmd_exec(a, run):
             cfg.update({"suite_tree": tree_of(run.root, head), "suite_exit": p.returncode})
             run.save_cfg(cfg)
     run.touch_lock()
-    out(res)
+    return res
 
 
 def cmd_baseline(a, run):
@@ -1160,13 +1239,17 @@ def is_test(path, globs):
 
 
 def cmd_changes(a, run):
+    out(compute_changes(run, a.since))
+
+
+def compute_changes(run, since=None):
     """What changed since a commit, sorted for the checks: test and production
     files, the findings doc, new files, size, line-ending churn, and what the
     checker should be told about."""
     cfg = run.cfg()
     root = run.root
     t = run.active()
-    ref = a.since or (t and t["start"]) or "HEAD"
+    ref = since or (t and t["start"]) or "HEAD"
     globs = cfg.get("test_globs") or []
     review_rel = os.path.relpath(cfg["review_dir"], root).replace(os.sep, "/")
     in_review = (lambda p: not review_rel.startswith("..") and
@@ -1224,7 +1307,7 @@ def cmd_changes(a, run):
                                 f"assertions): {f}")
     res["size"] = (f"prod {size['prod'][0]}f/{size['prod'][1]}l, "
                    f"test {size['test'][0]}f/{size['test'][1]}l")
-    out(res)
+    return res
 
 
 def cmd_scan(a, run):
@@ -1233,14 +1316,18 @@ def cmd_scan(a, run):
 
 
 def cmd_set_status(a, run):
-    """Committed mode: rewrite the finding's Status bullet in place, in its
-    findings doc in the code root, keeping every line's ending."""
+    """Rewrite the finding's Status bullet in place, keeping every line's
+    ending. Committed mode: in the findings doc in the code root, before the
+    commit it goes in. Private mode: in the review, outside the project, once
+    the task is done or disposed, so the review shows what the run did before
+    it lands."""
     cfg, data = run.cfg(), run.tasks()
     t = data["tasks"].get(a.task)
     if t is None:
         die("unknown task", task=a.task)
-    if cfg["mode"] != "committed":
-        die("Status is written only in committed mode")
+    if cfg["mode"] != "committed" and t["status"] != DONE:
+        die("in private mode, Status is written once the task is done or disposed",
+            status=t["status"])
     path = os.path.join(cfg["review_dir"], "findings", t["doc"])
     raw = open(path, "rb").read()
     parts = raw.split(b"\n")
@@ -1265,7 +1352,10 @@ def cmd_set_status(a, run):
         fh.write(b"\n".join(parts))
     save_review_snapshot(run, cfg)
     run.log(f"{a.task} Status set: {a.text[:120]}")
-    out({"result": "ok", "doc": os.path.relpath(path, run.root).replace(os.sep, "/")})
+    inside = os.path.normcase(os.path.abspath(path)).startswith(
+        os.path.normcase(os.path.abspath(run.root)) + os.sep)
+    out({"result": "ok", "doc": os.path.relpath(path, run.root).replace(os.sep, "/") if inside
+         else path})
 
 
 def cmd_discard(a, run):
@@ -1450,6 +1540,10 @@ def cmd_done(a, run):
         die("nothing committed since the task started")
     if git(root, "rev-list", "--merges", f"{start}..HEAD"):
         die("the task's commits include a merge commit; history must stay linear")
+    if cfg.get("commits") == "one" and len(commits) > 1:
+        out({"result": "not-squashed", "why": "this run makes one commit per finding: `squash` "
+             "the task's commits with its final message, then `done` again",
+             "commits": commits}, 4)
     if a.outcome not in DISPOSITIONS:
         if cfg.get("suite_tree") != tree_of(root, "HEAD"):
             out({"result": "no-full-suite", "why": "the full suite hasn't run on this tree: run "
@@ -1503,7 +1597,9 @@ def cmd_requeue(a, run):
                   "note": a.note or t.get("note")})
         return {"blocked": recompute_blocked(tasks)}
     if run.cfg().get("finished"):
-        die("the run is finished: start a new run for these findings, with --note")
+        die("the run is finished: start a follow-up run for these findings, "
+            f"init --like {run.cfg()['run']} --ids <IDs> --note \"<ID>=<text>\", on a new branch "
+            "from this run's tip (SKILL.md, A follow-up run)")
     t, extra = change_task(run, a.task, m, lambda t: f"{t['id']} requeued"
                            + (f" with a note: {a.note}" if a.note else ""), need_active=False)
     out({"result": "requeued", "task": a.task, "status_now": t["status"],
@@ -1566,6 +1662,454 @@ def cmd_finish(a, run):
          "records_copied": len(copied)})
 
 
+
+# --- one commit per finding ---------------------------------------------------------
+
+def cmd_squash(a, run):
+    """One-commit mode: fold the task's commits into one, with its final message.
+    The tree is unchanged, so every check that ran on it still holds."""
+    t = run.active()
+    if t is None or t["id"] != a.task:
+        die(f"{a.task} isn't the task in progress")
+    root, start = run.root, t["start"]
+    if tracked_changes(root):
+        die("tracked files have uncommitted changes; commit or discard them first")
+    if not os.path.isfile(a.message):
+        die("no message file", message=a.message)
+    if not git(root, "rev-list", f"{start}..HEAD"):
+        die("nothing committed since the task started")
+    tree = tree_of(root, "HEAD")
+    git(root, "reset", "-q", "--soft", start)
+    p = git(root, "commit", "-q", "-F", a.message, check=False)
+    if p.returncode != 0:
+        out({"result": "commit-failed", "why": "the commit was refused, often by a commit hook; "
+             "the task's changes are staged on its start: fix the message and `squash` again, "
+             "or discard", "stderr": p.stderr.strip()}, 4)
+    if tree_of(root, "HEAD") != tree:
+        die("the squash changed the tree; discard the task")
+    sha = git(root, "rev-parse", "--short", "HEAD")
+    run.log(f"{t['id']} squashed into {sha}")
+    out({"result": "squashed", "commit": sha,
+         "subject": git(root, "log", "-1", "--format=%s")})
+
+
+# --- the checks on a fix and on an improvement, run the same way every time --------
+
+BUILD_FAILURE = re.compile(
+    r"\[build failed\]|\[setup failed\]|build constraints exclude|cannot find package|"
+    r"Test suite failed to run|error TS\d+|ModuleNotFoundError|ImportError while importing|"
+    r"SyntaxError:|error\[E\d+\]|could not compile|BUILD FAILED|compilation failed", re.I)
+
+
+def split_test(spec):
+    path, sep, name = (spec or "").partition("::")
+    if not sep or not path or not name:
+        die("--test is <test file>::<test name>", test=spec)
+    return path.strip(), name.strip()
+
+
+def red_problem(res, name):
+    """Why a run meant to show red doesn't, or None if it does: it ran, the
+    named test appears in the log, and the build or import didn't fail."""
+    if res.get("exit") is None:
+        return "no target command"
+    if res["exit"] == 0:
+        return "the test passed without the fix"
+    try:
+        text = open(res["log"], encoding="utf-8", errors="replace").read()
+    except OSError:
+        return "no log"
+    if BUILD_FAILURE.search(text):
+        return "the test did not build or load without the fix: " + BUILD_FAILURE.search(text).group(0)
+    if name not in text:
+        return f"the log never names {name}: the test didn't run"
+    return None
+
+
+def red_lines(res, name, limit=12):
+    try:
+        lines = open(res["log"], encoding="utf-8", errors="replace").read().splitlines()
+    except OSError:
+        return []
+    hit = [i for i, ln in enumerate(lines) if name in ln]
+    keep = []
+    for i in hit[:3]:
+        keep.extend(lines[i:i + 4])
+    return keep[:limit]
+
+
+def regression_run(run, which, ident, files=None):
+    """The regression rule: a failure gets one rerun. A pass on the rerun is a
+    flaky test for the session to name; two failures are for it to compare with
+    baseline.md and flaky.md."""
+    r = run_exec(run, which, files=files, log_name=f"{ident}-{which}")
+    if r.get("exit") in (0, None):
+        return {"step": which, "ok": True, "log": r.get("log"), "skipped": r.get("exit") is None}
+    r2 = run_exec(run, which, files=files, log_name=f"{ident}-{which}-rerun")
+    if r2.get("exit") == 0:
+        return {"step": which, "ok": True, "flaky_suspect": r["log"], "log": r2["log"]}
+    return {"step": which, "ok": False, "log": r2["log"], "first_log": r["log"]}
+
+
+def raw_diff(root, base, paths):
+    if not paths:
+        return b""
+    return subprocess.run(["git", "diff", "--binary", base, "--", *paths], cwd=root,
+                          capture_output=True).stdout
+
+
+def at_ref(root, ref, path):
+    return git(root, "cat-file", "-e", f"{ref}:{path}", check=False).returncode == 0
+
+
+def checks_report(steps, result, category=None, why=None, **extra):
+    rep = {"result": result, "steps": steps, **extra}
+    if category:
+        rep.update({"category": category, "why": why})
+    out(rep, 0 if result == "ok" else 4)
+
+
+def cmd_check_fix(a, run):
+    """The checks on a fix (fix, partly, and the fix of a seam task), in order:
+    the changes are allowed, red, green, the regression run and the check. The
+    work is uncommitted; HEAD is the task's start, or the seam commit."""
+    cfg, root = run.cfg(), run.root
+    t = run.active()
+    if t is None or t["id"] != a.task:
+        die(f"{a.task} isn't the task in progress")
+    test_file, test_name = split_test(a.test)
+    steps = []
+    ch = compute_changes(run, "HEAD")
+    summary = {k: ch[k] for k in ("test", "production", "new", "deleted", "flags", "size")}
+    if ch["review"]:
+        checks_report(steps, "fail", "escaped", "files in the review directory changed: stop the run",
+                      changes=summary)
+    if not ch["test"] or not ch["production"]:
+        checks_report(steps, "fail", "no-red", "a red-green fix changes at least one test file and "
+                      "one production file", changes=summary)
+    if ch["line_ending_churn"]:
+        checks_report(steps, "fail", "env", f"line-ending churn: {ch['line_ending_churn']}",
+                      changes=summary)
+    steps.append({"step": "changes", "ok": True})
+    if cfg["mode"] == "private":
+        hits = leak_hits(run, t["start"])
+        if hits:
+            checks_report(steps, "fail", "leak", "the work points at the review", hits=hits[:20],
+                          changes=summary)
+        steps.append({"step": "scan", "ok": True})
+    # Red: the production files back as they were, the test as written.
+    prod = ch["production"]
+    new_prod = [f for f in prod if f in ch["new"]]
+    old_prod = [f for f in prod if f not in ch["new"]]
+    patch = os.path.join(run.records, f"{a.task}.fix.patch")
+    with open(patch, "wb") as fh:
+        fh.write(raw_diff(root, "HEAD", old_prod))
+    with open(os.path.join(run.records, f"{a.task}.test.patch"), "wb") as fh:
+        fh.write(raw_diff(root, "HEAD", [f for f in ch["test"] if f not in ch["new"]]))
+    aside = os.path.join(run.records, f"{a.task}.aside")
+    if old_prod:
+        git(root, "restore", "--source=HEAD", "--", *old_prod)
+    for f in new_prod:
+        dst = os.path.join(aside, f)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.move(os.path.join(root, f), dst)
+    r = run_exec(run, "target", test_file, test_name, log_name=f"{a.task}-red")
+    why = red_problem(r, test_name)
+    lines = red_lines(r, test_name)
+    for f in new_prod:
+        shutil.move(os.path.join(aside, f), os.path.join(root, f))
+    if os.path.getsize(patch) and subprocess.run(["git", "apply", patch], cwd=root).returncode:
+        checks_report(steps, "fail", "env", "the fix did not apply back: the tree is in an unknown "
+                      "state; discard, and bounce env", changes=summary)
+    if why:
+        checks_report(steps, "fail", "no-red", why, red_log=r.get("log"), red_lines=lines,
+                      changes=summary)
+    steps.append({"step": "red", "ok": True, "log": r["log"]})
+    g = run_exec(run, "target", test_file, None, log_name=f"{a.task}-green")
+    if g.get("exit") != 0:
+        checks_report(steps, "fail", "no-green", "the test file doesn't pass with the fix",
+                      green_log=g.get("log"), changes=summary)
+    steps.append({"step": "green", "ok": True, "log": g["log"]})
+    for which, files in (("related", ch["test"] + ch["production"]), ("check", None)):
+        st = regression_run(run, which, a.task, files)
+        steps.append(st)
+        if not st["ok"]:
+            checks_report(steps, "fail", "regression", f"{which} failed twice: compare its failures "
+                          "with baseline.md and flaky.md before bouncing", changes=summary)
+    run.log(f"{a.task} check-fix: passed")
+    checks_report(steps, "ok", changes=summary, red_lines=lines,
+                  confirm="read red_lines: the test must fail for the finding's reason, as the "
+                          "record's Red line says")
+
+
+def cmd_check_round(a, run):
+    """The checks on an improvement round, with HEAD at the task's last commit.
+    A failure means: roll this round back with `discard --to-head`."""
+    cfg, root = run.cfg(), run.root
+    t = run.active()
+    if t is None or t["id"] != a.task:
+        die(f"{a.task} isn't the task in progress")
+    start = t["start"]
+    before = a.before or start
+    steps = []
+    ch = compute_changes(run, "HEAD")
+    if ch["review"]:
+        checks_report(steps, "fail", "escaped", "files in the review directory changed: stop the run")
+    if ch["line_ending_churn"]:
+        checks_report(steps, "fail", "rollback", f"line-ending churn: {ch['line_ending_churn']}")
+    if cfg["mode"] == "private":
+        hits = leak_hits(run, start)
+        if hits:
+            checks_report(steps, "fail", "rollback", "the round points at the review", hits=hits[:20])
+    # Test lines that predate the task may not change.
+    old_lines = []
+    for f in ch["test"]:
+        if f in ch["new"] or not at_ref(root, start, f):
+            continue
+        was = set(git(root, "show", f"{start}:{f}").splitlines())
+        diff = git(root, "diff", "-U0", "HEAD", "--", f).splitlines()
+        old_lines += [f"{f}: {ln[1:].strip()}" for ln in diff
+                      if ln.startswith("-") and not ln.startswith("---") and ln[1:] in was
+                      and ln[1:].strip()]
+    if old_lines:
+        checks_report(steps, "fail", "rollback", "the round changes or removes test lines that "
+                      "predate the task", lines=old_lines[:20])
+    steps.append({"step": "changes", "ok": True, "size": ch["size"]})
+    task_files = sorted(set(git(root, "diff", "--name-only", start, "HEAD").split())
+                        | set(ch["test"]) | set(ch["production"]))
+    globs = cfg.get("test_globs") or []
+    prod = [f for f in task_files if not is_test(f, globs)]
+    if a.test:
+        test_file, test_name = split_test(a.test)
+        patch = os.path.join(run.records, f"{a.task}.round.patch")
+        with open(patch, "wb") as fh:
+            fh.write(raw_diff(root, "HEAD", [f for f in prod if at_ref(root, "HEAD", f)]))
+        aside = os.path.join(run.records, f"{a.task}.round-aside")
+        moved, restored_extra = [], []
+        for f in prod:
+            if at_ref(root, before, f):
+                if not at_ref(root, "HEAD", f):
+                    restored_extra.append(f)
+                git(root, "restore", f"--source={before}", "--", f)
+            elif os.path.exists(os.path.join(root, f)):
+                dst = os.path.join(aside, f)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.move(os.path.join(root, f), dst)
+                moved.append(f)
+        r = run_exec(run, "target", test_file, test_name, log_name=f"{a.task}-round-red")
+        why = red_problem(r, test_name)
+        back = [f for f in prod if at_ref(root, "HEAD", f)]
+        if back:
+            git(root, "restore", "--source=HEAD", "--", *back)
+        for f in restored_extra:
+            os.remove(os.path.join(root, f))
+        for f in moved:
+            shutil.move(os.path.join(aside, f), os.path.join(root, f))
+        if os.path.getsize(patch) and subprocess.run(["git", "apply", patch], cwd=root).returncode:
+            checks_report(steps, "fail", "rollback", "the round did not apply back after the red "
+                          "check")
+        if why:
+            checks_report(steps, "fail", "rollback", f"red no longer holds: {why}", red_log=r.get("log"))
+        steps.append({"step": "red", "ok": True, "log": r["log"]})
+    if a.proof:
+        proof_file, proof_name = split_test(a.proof)
+        kept = os.path.join(run.records, f"{a.task}.proof.{os.path.basename(proof_file)}.txt")
+        if not os.path.isfile(kept):
+            die("no kept proof", kept=kept)
+        shutil.copy2(kept, os.path.join(root, proof_file))
+        r = run_exec(run, "target", proof_file, proof_name, log_name=f"{a.task}-round-proof")
+        os.remove(os.path.join(root, proof_file))
+        why = red_problem(r, proof_name)
+        if why:
+            checks_report(steps, "fail", "rollback", f"the proof no longer fails: {why}",
+                          proof_log=r.get("log"))
+        steps.append({"step": "proof", "ok": True, "log": r["log"]})
+    if a.test:
+        g = run_exec(run, "target", split_test(a.test)[0], None, log_name=f"{a.task}-round-green")
+        if g.get("exit") != 0:
+            checks_report(steps, "fail", "rollback", "the test file doesn't pass after the round",
+                          green_log=g.get("log"))
+        steps.append({"step": "green", "ok": True, "log": g["log"]})
+    for which, files in (("related", task_files), ("check", None)):
+        st = regression_run(run, which, f"{a.task}-round", files)
+        steps.append(st)
+        if not st["ok"]:
+            checks_report(steps, "fail", "rollback", f"{which} failed twice: compare with "
+                          "baseline.md and flaky.md; otherwise roll the round back")
+    run.log(f"{a.task} check-round: passed")
+    checks_report(steps, "ok")
+
+
+# --- the subagent prompts, filled in --------------------------------------------------
+
+PROMPTS = ("fixer", "seam", "notest-fixer", "builder", "checker", "harness-checker",
+           "reviewer", "verifier")
+MARKER = re.compile(r"`\[([^\]`]+?):?\]`\s?")
+
+
+def marker_holds(name, ctx):
+    n = name.rstrip(":").strip().upper()
+    table = {
+        "PRIVATE MODE ONLY": ctx["mode"] == "private",
+        "USER NOTE ONLY": bool(ctx["note"]),
+        "IF IT HAS PREREQUISITES ONLY": bool(ctx["deps"]),
+        "PARTLY TESTABLE ONLY": ctx["kind"] == "partly",
+        "NOTEST ONLY": ctx["kind"] == "notest",
+        "HARNESS ONLY": ctx["kind"] == "harness",
+        "RED-GREEN ONLY": ctx["kind"] in ("fix", "partly", "seam"),
+        "SEAM COMMIT ONLY": bool(ctx["seam"]),
+        "SEAM DOUBLE ONLY": bool(ctx["seam_double"]),
+        "SEAM (HARNESS) ONLY": bool(ctx["harness_deps"]),
+        "AND, IF THIS FINDING PROVED THAT HARNESS": bool(ctx["proved"]),
+        "IF THE RUN FLAGGED ANYTHING": bool(ctx["flags"]),
+        "RE-RATED ONLY": (ctx["reason"] or "").startswith("re-rated"),
+        "ONE COMMIT ONLY": ctx["commits"] == "one",
+        "SEPARATE COMMITS ONLY": ctx["commits"] != "one",
+    }
+    if n not in table:
+        die(f"unknown prompt marker [{name}]")
+    return table[n]
+
+
+SENTENCE_END = re.compile(r"\.(?=\s|$)")
+ITEM = re.compile(r"\s*[-*] ")
+
+
+def select_blocks(text, ctx):
+    """Keep what applies. A marker that starts a paragraph or a list item gates
+    all of it; a marker inside a paragraph gates the rest of its sentence."""
+    kept = []
+    for block in re.split(r"\n[ \t]*\n", text):
+        items, cur = [], []
+        for ln in block.split("\n"):
+            if ITEM.match(ln) and cur:
+                items.append(cur)
+                cur = []
+            cur.append(ln)
+        items.append(cur)
+        lines = []
+        for it in items:
+            m = re.match(r"(\s*[-*] )" + MARKER.pattern, it[0])
+            if m:
+                if not marker_holds(m.group(2), ctx):
+                    continue
+                it = [m.group(1) + it[0][m.end():]] + it[1:]
+            lines.extend(it)
+        block = "\n".join(lines)
+        m = MARKER.match(block)
+        if m:
+            if not marker_holds(m.group(1), ctx):
+                continue
+            block = block[m.end():]
+        while True:
+            m = MARKER.search(block)
+            if not m:
+                break
+            if marker_holds(m.group(1), ctx):
+                block = block[:m.start()] + block[m.end():]
+                continue
+            e = SENTENCE_END.search(block, m.end())
+            stop = e.end() if e else len(block)
+            block = block[:m.start()] + block[stop:].lstrip(" ")
+        block = "\n".join(ln.rstrip() for ln in block.split("\n") if ln.strip())
+        if block.strip():
+            kept.append(block)
+    return "\n\n".join(kept)
+
+
+def cmd_prompt(a, run):
+    """Fill in a subagent's prompt from the run's state, and write it to a file
+    the subagent is told to read."""
+    cfg, data = run.cfg(), run.tasks()
+    t = data["tasks"].get(a.task)
+    if t is None:
+        die("unknown task", task=a.task)
+    # The run's own copy, which init made; the skill's, for a run made before that.
+    path = os.path.join(HERE, "prompts", f"{a.role}-prompt.md")
+    if not os.path.isfile(path):
+        path = os.path.join(HERE, "..", "reference", f"{a.role}-prompt.md")
+    if not os.path.isfile(path):
+        die("no such prompt", path=path)
+    text = open(path, encoding="utf-8").read()
+    text = text.split("\n---\n", 1)[1] if "\n---\n" in text else text
+    deps = deps_info(run, data, t)
+    harness_deps = [d for d in deps if d["kind"] == "harness"]
+    proved = [d for d in harness_deps if (d.get("proof") or "").split(":")[0].strip() == t["id"]
+              and d.get("proof_copy")]
+    ch = compute_changes(run, "HEAD") if a.role in ("checker", "harness-checker") else None
+    ctx = {"mode": cfg["mode"], "note": t.get("note"), "deps": deps, "kind": t["kind"],
+           "seam": a.seam, "seam_double": a.seam_double, "harness_deps": harness_deps,
+           "proved": proved, "flags": (ch or {}).get("flags"), "reason": t.get("reason"),
+           "commits": cfg.get("commits", "separate")}
+    text = select_blocks(text, ctx)
+    # A placeholder the prose wrapped across lines reads as one.
+    text = re.sub(r"<([^<>`]*?\n[^<>`]*?)>", lambda m: "<" + " ".join(m.group(1).split()) + ">",
+                  text)
+    state, root = run.state.replace("\\", "/"), run.root.replace("\\", "/")
+    globs = cfg.get("test_globs") or []
+    run_test = (f'python "{state}/bin/fix_run.py" --root "{root}" exec target --file <test file> '
+                f'--test-name "<test name>"')
+    values = {
+        "root": root, "state": state, "branch": cfg["branch"], "pin": cfg.get("pin") or "",
+        "review dir": cfg["review_dir"].replace("\\", "/"), "commit style": cfg.get("commit_style") or "",
+        "the note": t.get("note") or "", "ID": t["id"], "X-ID": t["id"], "start": t.get("start") or "",
+        "run a test": run_test, "the task's reason": t.get("reason") or "",
+        "each ID and its title": "; ".join(f"{d['id']}: {d['title']}" for d in deps),
+    }
+    if harness_deps:
+        h = harness_deps[0]
+        values.update({"X-ID": h["id"], "its title": h["title"], "probe": h.get("probe") or ""})
+        if proved:
+            values["name"] = os.path.basename(proved[0]["proof_copy"]).split(".proof.", 1)[1][:-4]
+    if t["kind"] == "harness":
+        values["X-ID"] = t["id"]
+        own = sorted(f for f in os.listdir(run.records) if f.startswith(f"{t['id']}.proof."))
+        if own:
+            values["name"] = own[0].split(".proof.", 1)[1][:-4]
+    if a.seam:
+        values["seam sha"] = a.seam
+    if a.seam_line:
+        values["the seam agent's line"] = a.seam_line
+    if a.round:
+        values["n"] = str(a.round)
+    if ch is not None:
+        values["prod and test files and lines"] = ch["size"]
+    if a.proof_file:
+        values["proof file"] = a.proof_file
+    if a.claim:
+        kind, _, line = a.claim.partition(":")
+        values["GONE | REFUTED | PRESENT"] = kind.strip()
+        values["the subagent's one line"] = line.strip()
+    for kv in a.set or []:
+        k, _, v = kv.partition("=")
+        values[k.strip()] = v
+    if ctx["flags"]:
+        text = re.sub(r"(\*\*The run flagged:\*\* )`<[^<>`]*>`", lambda m: m.group(1) +
+                      "; ".join(ctx["flags"]), text, flags=re.S)
+    if "test path globs" not in values:
+        text = text.replace("`<test path globs>`", ", ".join(f"`{g}`" for g in globs))
+        values["test path globs"] = ", ".join(globs)
+    for k, v in values.items():
+        text = text.replace(f"<{k}>", v)
+    # What the session was meant to fill and didn't: a gap in the prompt.
+    fillable = ("seam sha", "the seam agent's line", "n", "proof file", "GONE | REFUTED | PRESENT",
+                "the subagent's one line", "prod and test files and lines")
+    missing = sorted({k for k in fillable if f"<{k}>" in text})
+    if missing:
+        die("the prompt needs values the run doesn't have: pass them", missing=missing,
+            options="--seam, --seam-line, --round, --proof-file, --claim, --set key=value")
+    outdir = os.path.join(run.state, "prompts")
+    os.makedirs(outdir, exist_ok=True)
+    name = f"{t['id']}-{a.role}" + (f"-{a.round}" if a.round else "") + ".md"
+    dest = os.path.join(outdir, name)
+    with open(dest, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text.strip() + "\n")
+    out({"result": "ok", "prompt": dest,
+         "spawn": f"Your full instructions are in `{dest}`. Read that file in full first and "
+                  "follow it exactly; it is your task, written by the session that started you. "
+                  "Your final response must be only the one line it asks for."})
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--root", help="the code root (default: found from the current directory)")
@@ -1574,7 +2118,12 @@ def main():
     s = sp.add_parser("init", help="create a run from a review")
     s.add_argument("--review", required=True)
     s.add_argument("--run", required=True)
-    s.add_argument("--branch", required=True)
+    s.add_argument("--branch", help="the run branch, created at the base; omit with --in-place")
+    s.add_argument("--in-place", action="store_true",
+                   help="run on the branch checked out, committing to it directly")
+    s.add_argument("--commits", choices=("separate", "one"), default=None,
+                   help="separate: test, fix, seam, harness and round commits as made (default); "
+                        "one: each finding squashed into a single commit before done")
     s.add_argument("--base", default="HEAD")
     s.add_argument("--mode", choices=("committed", "private"), required=True)
     s.add_argument("--pin", help="the review's pinned commit, from its README")
@@ -1586,6 +2135,9 @@ def main():
     s.add_argument("--gate", default="slack", help="slack, none, or the path of a usage-check script")
     s.add_argument("--note", action="append",
                    help="ID=text: the user's decision about a finding, for its subagents; repeatable")
+    s.add_argument("--like", metavar="RUN",
+                   help="a follow-up run: take the commands, test paths, commit style and review "
+                        "context from this earlier, finished run of the same review")
     s.add_argument("--dry-run", action="store_true")
 
     s = sp.add_parser("config", help="show run.json, or --set key=value")
@@ -1608,7 +2160,7 @@ def main():
     s = sp.add_parser("exec", help="run a recorded command in the code root")
     s.add_argument("which", choices=("target", "related", "suite", "check", "install"))
     s.add_argument("--files", nargs="*", help="changed files, for {files} in `related`")
-    s.add_argument("--file")
+    s.add_argument("--file", help="the test file, for {file} and {dir} in `target`")
     s.add_argument("--test-name")
     s.add_argument("--log")
     s.add_argument("--tail", type=int, default=15)
@@ -1619,7 +2171,8 @@ def main():
     s.add_argument("--since", help="default: the task's start")
     s = sp.add_parser("scan", help="private mode: leak scan of added lines and messages")
     s.add_argument("--since", required=True)
-    s = sp.add_parser("set-status", help="committed mode: rewrite a finding's Status bullet")
+    s = sp.add_parser("set-status", help="rewrite a finding's Status bullet: committed mode before "
+                                         "its commit, private mode once the task is done")
     s.add_argument("task")
     s.add_argument("text")
     s = sp.add_parser("discard", help="put the tree back at the task's start")
@@ -1649,6 +2202,29 @@ def main():
     s.add_argument("--evidence")
     s.add_argument("--rounds-run", type=int)
 
+    s = sp.add_parser("squash", help="one-commit mode: fold the task's commits into one")
+    s.add_argument("task")
+    s.add_argument("--message", required=True, help="a file holding the final commit message")
+    s = sp.add_parser("check-fix", help="the checks on a fix: changes, scan, red, green, "
+                                         "regression run and check")
+    s.add_argument("task")
+    s.add_argument("--test", required=True, help="<test file>::<test name>")
+    s = sp.add_parser("check-round", help="the checks on an improvement round")
+    s.add_argument("task")
+    s.add_argument("--test", help="<test file>::<test name>, for a task with a red-green test")
+    s.add_argument("--before", help="the code before the fix (default: the task's start; for a "
+                                     "seam task, the seam commit)")
+    s.add_argument("--proof", help="a harness: <proof file>::<test name>, its kept proof")
+    s = sp.add_parser("prompt", help="fill in a subagent's prompt and write it to a file")
+    s.add_argument("task")
+    s.add_argument("role", choices=PROMPTS)
+    s.add_argument("--round", type=int, help="the review round, for the reviewer")
+    s.add_argument("--seam", help="the seam commit, for the fixer and checker of a seam task")
+    s.add_argument("--seam-double", action="store_true", help="the seam is a test double")
+    s.add_argument("--seam-line", help="the seam agent's one line")
+    s.add_argument("--proof-file", help="the proof file, for the harness checker")
+    s.add_argument("--claim", help="the claim to verify, as GONE|REFUTED|PRESENT: <one line>")
+    s.add_argument("--set", action="append", help="<placeholder>=<value>, for anything else")
     s = sp.add_parser("requeue", help="on the user's word: a bounced or blocked task, again")
     s.add_argument("task")
     s.add_argument("--note", help="what the user decided, for the next attempt's subagents")

@@ -17,10 +17,11 @@ your check. You did not write it. Look for a reason not to accept it.
 **The fix** is uncommitted in `<root>`, on the branch `<branch>`. Read it
 with `git -C <root> diff` and `git -C <root> status`, and read the changed
 code in place, with whatever callers and context you need.
+
 `[RED-GREEN ONLY:]` The test changes are also saved as
 `<state>/records/<ID>.test.patch` and the production change as
-`<ID>.fix.patch`. The run has already seen the test fail without the fix,
-for the finding's reason, and pass with it.
+`<state>/records/<ID>.fix.patch`. The run has already seen the test fail
+without the fix, for the finding's reason, and pass with it.
 
 **Its size:** `<prod and test files and lines>`. Nothing bounces on size. A
 fix much larger than the defect seems to need is a reason to look harder at

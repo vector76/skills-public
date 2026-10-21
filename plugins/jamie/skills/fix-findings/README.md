@@ -148,6 +148,68 @@ Severity | Fix impact | RGR | Title | Status | Test | Probe | Proof | Rounds
 already describes how to reconcile that queue, and the same steps work here.
 Commits here are never rebased, so the Commits column's shas are final.
 
+## Lessons from the first run
+
+The first real run (a Go project, four findings, private mode) changed
+three things:
+
+- **A red test that doesn't build is thrown away.** One fixer's test named
+  the constant its fix added, so with the production files put back it
+  failed to compile, the red check rightly said `no-red`, and a good fix was
+  discarded. The fixer prompt now says why the test may use only names that
+  exist before the fix and asks the fixer to check that before returning;
+  the reviewer prompt keeps it so. The check itself is unchanged: rescuing
+  the test would be repairing a subagent's work.
+- **Not every runner tests a file.** Go tests a package, so `target` takes
+  `{dir}`, and `go_related.py` ships as the Go `related` command, since no
+  Go command lists the packages that depend on a file. It is copied into
+  `state/bin` with the rest, so the run's commands never point into the
+  plugin.
+- **A finished run is closed, so bounces come back in a follow-up run.**
+  Reopening a finished run would muddle its record, which is already
+  copied into the review. `init --like` makes the follow-up cheap instead:
+  it takes the earlier run's approved commands and conventions, and the run
+  stacks on the earlier branch.
+- **Private mode marks a fix in the review once it is committed.** It used
+  to leave every finding Open until reconcile, after the fixes landed, so
+  the review couldn't show which findings were already done, on a branch or
+  in an open PR, and the user couldn't tell what still needed a run. Now
+  `set-status` writes `Fixed — not yet landed: <shas> on <branch>` in the
+  review as each task finishes. The review is outside the project, so
+  nothing leaks, and the shas are plain text, since they link nowhere until
+  pushed. Reconcile turns it into the landed form, or back to Open if the
+  branch is abandoned.
+
+## Lessons from the second session
+
+Four more, from runs where the session did by hand what the script now does:
+
+- **One commit per finding** is a run setting, `--commits one`. The session
+  used to squash each task by hand, and once reworded a commit after `done`
+  had recorded it, leaving the record naming a commit `main` no longer had.
+  `squash` folds the task's commits before `done`, keeping the tree, and
+  `done` refuses more than one commit in this mode, so the order can't go
+  wrong.
+- **In place** (`--in-place`) runs on the branch checked out. A project that
+  commits straight to `main` wants its fixes there, not on a branch to merge.
+  Nothing else changes: `discard` already undoes only the task's own commits
+  with a soft reset, so earlier fixes stay.
+- **`check-fix` and `check-round`** run the checks on a fix and on an
+  improvement in their order, from the recorded commands, and stop at the
+  first failure with its bounce category. The session wrote a driver for
+  this in each run; the steps are mechanical, and doing them the same way
+  every time is the point. Judgement stays with the session: that red failed
+  for the finding's reason (from `red_lines`), and whether a regression is
+  on the baseline's list. The seam, no-test and harness checks are still run
+  by the session.
+- **`prompt`** fills a subagent's prompt from the run's state into a file the
+  subagent reads. Filling prompts by hand, many times over a long run, was
+  most of the session's context and the easiest place to drop a paragraph.
+  The marked paragraphs follow one rule: a marker that starts a paragraph or
+  a list item gates all of it, and one inside a paragraph gates the rest of
+  its sentence. The prompts are copied into `state/bin/prompts` with the
+  scripts, so a plugin update mid-run changes nothing.
+
 ## Defenses are left out
 
 The lanes runner defended each fix before it landed, as a page in the
@@ -165,14 +227,28 @@ checks always use the full suite, since their changes reach code through
 configuration and entry points no import graph shows. A failure off the
 baseline gets one rerun; a test that passes then is recorded as flaky.
 
-`scripts/fix_run.py` has no test suite yet. It was exercised end to end
-against a synthetic repository and review: eligibility, prerequisites pulled
-in, red and green, the Status rewrite, `done`'s refusals, bounces blocking
-dependents, a harness with its probe, the guard, the lock, a crash mid-task
-and its restart, requeue, finish, and a second run archiving the first.
+`scripts/tests/test_end_to_end.py` drives a run against a scratch Go
+repository and a synthetic review, standing in for the subagents itself: an
+in-place run in one-commit mode, a red check refusing a test that doesn't
+build, `check-fix`, `check-round` (and its refusal of a round that edits a
+test line older than the task), `squash` and `done`, and every prompt role
+rendered with nothing left unfilled, plus the marker rules in both commit
+modes. It needs git and Go, is skipped without them, and runs in about 15
+seconds:
+
+```
+python -m unittest discover -s scripts/tests
+```
+
+The rest of the script was exercised by hand, end to end, against a
+synthetic repository and review when it was first written: eligibility,
+prerequisites pulled in, the Status rewrite, bounces blocking dependents, a
+harness with its probe, the guard, the lock, a crash mid-task and its
+restart, requeue, finish, and a second run archiving the first.
 
 ## Not done yet
 
-- A test suite for `fix_run.py`.
+- Tests for the rest of `fix_run.py`: eligibility, the guard, the lock,
+  bounces, resume, finish, and the separate-commit and committed-mode paths.
 - The defense step, once fix-report is here.
 - A neutral, private-mode report.

@@ -1,9 +1,12 @@
 # The checks
 
-Run these yourself, in the order given. The first one that fails bounces the
-task with the category given, per *Bounces* in [work.md](work.md). Run every
-command through `$FIX exec <which> --log <ID>-<what>`, built from the
-recorded templates. **Never run a command line a subagent wrote.** Read the
+Two of these sets are one command each: `$FIX check-fix` runs the *Checks on
+a fix*, and `$FIX check-round` the *Checks on an improvement*, in the order
+below, stopping at the first failure with its category, as
+[work.md](work.md) says. Run the others yourself, in the order given. The
+first one that fails bounces the task with the category given, per
+*Bounces* in [work.md](work.md). Run every command through
+`$FIX exec <which> --log <ID>-<what>`, built from the recorded templates. **Never run a command line a subagent wrote.** Read the
 summary `exec` prints; when you need more, such as the names of failing
 tests, search its log for them rather than reading it whole.
 
@@ -96,7 +99,10 @@ Nothing bounces on size.
 4. **It must fail on an assertion, for the finding's reason**, as the
    fixer's record predicts. Search the log for the test's name: it must have
    run and failed. Zero tests run, a suite that doesn't load, a compile or
-   import error, or a different test failing is not red. → `no-red`
+   import error, or a different test failing is not red. → `no-red`. That
+   includes a test that names a constant or function the fix adds: it can't
+   build without the fix. Bounce it; the fixer prompt warns against it, and
+   a later run can take it again with a note.
 5. Put the fix back: move the new production files back to their paths, then
    `git apply <state>/records/<ID>.fix.patch`. If it doesn't apply cleanly,
    the tree is in an unknown state: discard, and bounce `env`.

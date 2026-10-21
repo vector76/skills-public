@@ -45,7 +45,8 @@ It has eight steps, 0 to 7, run in order, and **one** gate
 5. **History is linear and local.** Commit only to the run branch, with
    explicit paths, never `git add -A`, never a merge. Never run `git push`,
    `git fetch` or `git pull`, in any form, and never touch the user's other
-   branches.
+   branches. In an in-place run the run branch is the one checked out, such
+   as `main`; the run still undoes only its own unpushed commits.
 6. **Only the throttle paces the run.** Before each task, run the run's
    `throttle.bat`. Never read plan usage or quota any other way.
 
@@ -85,7 +86,9 @@ Confirm before anything else, and stop if one is missing:
     records/attempts/  earlier attempts' records, moved aside when a task restarts
     logs/              command output
     bin/               the run's own copies of fix_run.py, review_format.py,
-                       throttle.bat and slack-check.bat
+                       go_related.py, throttle.bat and slack-check.bat,
+                       and of the subagent prompts, in bin/prompts/
+    prompts/           each prompt as filled in for a subagent, which reads it
     PAUSE.flag         present while the run is paused by hand
 <review dir>/fixes/<run>/
   RUN.lock             present while a session is running the run
@@ -129,6 +132,27 @@ finished (`$FIX status` shows `finished: false`), the user is continuing a
 run, whatever they asked: follow [reference/resume.md](reference/resume.md)
 instead of the rest of this playbook. Otherwise it is a new run.
 
+### A follow-up run
+
+A finished run takes no requeue. When the user wants findings an earlier run
+bounced or blocked taken again, usually with their answer as a note, they go
+in a **follow-up run**: a new run, set up from the earlier one.
+
+- `init --like <earlier run>` takes that run's commands, test paths, commit
+  style, commits setting, `name_is_regex`, `workers` and `review-context.md`,
+  all of which the user already approved; an explicit `--commits` wins. Step 1
+  then asks only what is new: which findings, and the notes. The earlier run must be of the same review and finished;
+  its state is the current one or `.fix-findings/finished-<run>/`.
+- **Base**: the earlier run's branch tip, so the new fixes stack on its
+  fixes. Its fixed findings count as fixed in that base, so what waits on
+  them is eligible. **Run name and branch**: the earlier ones with `-2`
+  (then `-3`, …); an in-place run follows on in place, on the same branch.
+- The gate still runs, shortened to the scope, the notes, and what `--like`
+  carried over. Setup skips steps 4.3 and 4.4, and runs the rest, the
+  baseline included.
+- The report says that the earlier run's branch is now a prefix of the new
+  one, which holds every fix, so the user can delete it.
+
 ## 1. Gather the parameters
 
 Work out everything you can from the review and the repository, and **ask for
@@ -165,20 +189,37 @@ where the user can correct it.
 - **Base** — default the current `HEAD`. **Pin** — the review's pinned
   commit, from its `README.md`.
 - **Run name** — default `findings-<date>`, unique among the review's
-  `fixes/` runs. **Run branch** — default `fix/findings-<review dir
-  name>-<date>` in committed mode, and `fix/findings-<date>` in private mode,
-  where a branch the user may push must not name the review.
+  `fixes/` runs.
+- **Where the commits go** — **a run branch** (the default), created at the
+  base: `fix/findings-<review dir name>-<date>` in committed mode, and
+  `fix/findings-<date>` in private mode, where a branch the user may push
+  must not name the review. Or **in place** (`--in-place`): on the branch
+  checked out, such as `main`, for a project that commits straight to it or
+  when the user says to keep the fixes there. The base is then its tip.
+- **Commits per finding** — **separate** (the default): the test, the fix, a
+  seam, a harness's halves and each round's improvement as their own
+  commits, so the history shows red, then green. Or **one** (`--commits one`):
+  each finding squashed into a single commit before it is recorded done,
+  when the user wants one commit per fix.
 - **Commands**, from the review's harness, the build files and the CI
   configuration:
   - **Target** — runs one test file, with `{file}` and, where the runner
     supports it, `{name}`. For Jest: `npx jest {file} -t "{name}"`. The script
     escapes the name as a regex, since most runners' name filters are one;
     for a runner whose filter is literal, set `name_is_regex` to `false`.
+    `{name}` is empty when no name is given, and the green check runs the
+    whole file that way, so put it where an empty value selects every test.
+    A runner that tests a package or folder rather than a file takes
+    `{dir}`, the test file's folder relative to the root (`.` at the root).
+    For Go: `go test -count=1 ./{dir} -run "{name}"` (unanchored, so the
+    distinctive test names the fixers give keep it to one test).
   - **Related** (optional, recommended) — runs only the tests that depend on
     a set of changed files, with `{files}`, and **passes when it selects no
     tests**. For Jest:
-    `npx jest --findRelatedTests {files} --passWithNoTests`. With none, every
-    check runs the full suite.
+    `npx jest --findRelatedTests {files} --passWithNoTests`. For Go, the run
+    ships one, which runs the packages the files are in and every package
+    that imports them: `python "<state>/bin/go_related.py" {files}`. With
+    none, every check runs the full suite.
   - **Suite** — the full unit suite, as CI runs it. `{workers}`, if used, is
     the machine's core count.
   - **Check** (optional) — the type check, build or lint CI gates on.
@@ -203,13 +244,14 @@ Only checks that take seconds. Nothing slow runs before the gate.
 - **The prerequisites** above.
 - **The repository**: no tracked file is changed (untracked files are fine);
   the pin is an ancestor of the base (`git merge-base --is-ancestor`); the
-  run branch doesn't exist.
+  run branch doesn't exist, or, in place, a branch (not a detached `HEAD`) is
+  checked out.
 - **The tracking mode's own checks**, in
   [reference/tracking.md](reference/tracking.md).
 - **The task table, as a dry run**:
 
   ```
-  $FIX init --review "<review dir>" --run <run> --branch <run branch> --mode <mode> --pin <pin> --gate <slack|none|path> [--ids "<IDs>"] [--include …] [--exclude …] [--with-prereqs] [--note "<ID>=<text>" …] --dry-run
+  $FIX init --review "<review dir>" --run <run> (--branch <run branch> | --in-place) [--commits one] --mode <mode> --pin <pin> --gate <slack|none|path> [--ids "<IDs>"] [--include …] [--exclude …] [--with-prereqs] [--note "<ID>=<text>" …] --dry-run
   ```
 
   It applies eligibility (Open, not REFUTED, rated, every prerequisite fixed
@@ -224,6 +266,10 @@ Only checks that take seconds. Nothing slow runs before the gate.
   Exit `0` or `1` is a working answer. Exit `2` means the usage trayapp isn't
   reachable, and the run must not start on it: it would pause at once and
   give up. That is something to fix first.
+- **The renderer**, if the review has a rendered site: `python -c "import
+  markdown"` succeeds, so the re-render after each task can run. If it
+  fails, the gate says so: install it (`python -m pip install markdown`), or
+  the run goes on without re-rendering.
 
 Anything that fails here goes in the gate message as something to fix before
 starting, not as a question.
@@ -235,7 +281,8 @@ The only gate in the run. Show the user, in one message:
 - **The scope**: the tasks in the run's order, by kind, with the choke
   points; what is left out, grouped by reason, with the IDs; and, if the dry
   run found any, the Open prerequisites to add (**ask** whether to add them).
-- the tracking mode, the base, the run branch, the run name
+- the tracking mode, the base, where the commits go (the run branch, or in
+  place on the branch checked out), commits per finding, the run name
 - the commands, the test paths, the usage gate, and the commit style
 - anything from step 2 that must be fixed first
 - **What the agents will decide on their own**, as reminders:
@@ -260,7 +307,9 @@ The only gate in the run. Show the user, in one message:
   the run (*Stopping* in step 5).
   - **The working tree belongs to the run until it finishes.** The run
     branch is checked out in this folder; the user shouldn't edit files here
-    or switch branches meanwhile.
+    or switch branches meanwhile. In place, that branch gets the run's
+    commits as it goes, and a task that fails a check is undone back to its
+    own start, keeping the fixes before it.
   - **This session must not stop on permission prompts**: nobody is
     watching it. It should run in auto mode, or with an allowlist that covers
     git, Python, the test commands, and file edits in this folder.
@@ -286,12 +335,18 @@ takes a while. From here on, if a step fails, stop the run with a report:
 3. **Record the parameters**: `$FIX config --set commands.target="…"`, and the
    same for `commands.related`, `commands.suite`, `commands.check`,
    `commands.install`, `test_globs` (a JSON list), `commit_style`, and
-   `name_is_regex` if it isn't true.
+   `name_is_regex` if it isn't true. A follow-up run made with `--like` has
+   them already. Set any value holding double quotes from Bash: Windows
+   PowerShell 5.1 drops the quotes inside a native command's arguments, so
+   `"{name}"` arrives as `{name}` and a JSON list as a bare string. Read back
+   what `config` prints.
 4. **Write `<state>/review-context.md`**: four sections copied verbatim from
    the review's `README.md`: the platform description its prompts use, *Test
-   harness*, *Fix impact scale* and *RGR scale*. Every subagent reads it.
+   harness*, *Fix impact scale* and *RGR scale*. Every subagent reads it. A
+   follow-up run made with `--like` has it already.
 5. **Create the run branch** at the base and check it out:
-   `git switch -c <run branch> <base>`.
+   `git switch -c <run branch> <base>`. In place, skip this: the branch is
+   already checked out at the base.
 6. **Install dependencies**, only if they are missing: `$FIX exec install`.
    Afterwards no tracked file may have changed. An install that changes a
    lockfile stops the run.
@@ -339,6 +394,17 @@ Repeat until a step ends the run:
    (`$FIX dispose`), or as a bounce. After a bounce, `$FIX bounce` prints
    `env_streak`. At 3, three `env` bounces in a row, the harness, the
    commands or the machine is the problem, not the findings: stop the run.
+   In private mode, a task that ends done or disposed then gets its Status
+   in the review (`$FIX set-status`, in the private form in
+   [reference/tracking.md](reference/tracking.md)): Fixed, not yet landed,
+   with its branch and commits.
+4. **Re-render the site**, if the review has one (`<review dir>/html/`),
+   after every task that ends done or disposed:
+   `python "<this skill's directory>/../systematic-code-review/scripts/render_review_html.py" "<review dir>" --quiet`.
+   It writes only `html/`, which the guard leaves out. Read only its
+   `WARNING` lines. A render that fails is logged
+   (`$FIX log "render failed: <first line>"`) and the run goes on; it never
+   stops the run or bounces the task.
 
 **If you lose your place in a task**, because the context was compacted or
 you can't tell which step comes next, run `$FIX status`, then
@@ -406,11 +472,12 @@ task in progress where it is; a resume redoes it.
      giving the run's counts by outcome and no trailer.
    - **Private**: if the review directory is in a git repository of its own
      (`git -C <review dir> rev-parse --show-toplevel` is not `<root>`),
-     commit `fixes/<run>/` there, locally, as `fix-findings run <run>`. Never
-     commit it into the project.
-4. If the review has a rendered site (`<review dir>/html/`), re-render it, as
-   the review skill's rendering reference says, so it shows the new
-   statuses.
+     commit `fixes/<run>/` and the findings docs whose Status the run set
+     there, locally, as `fix-findings run <run>`. Never commit them into the
+     project.
+4. If the review has a rendered site (`<review dir>/html/`), render it once
+   more, without `--quiet`, as the review skill's rendering reference says,
+   and read its pin and `WARNING` lines.
 
 ## 7. Report
 
@@ -422,8 +489,8 @@ task in progress where it is; a resume redoes it.
   defect, gone and present, each with its evidence in a clause. The user may
   disagree with any of them.
 - **Left for the user**: `intent` and `disputed` bounces, each with what is
-  in question and what it blocks. Answers come back through a later run, as
-  [reference/resume.md](reference/resume.md) says.
+  in question and what it blocks. Answers come back through a follow-up run
+  (*A follow-up run*, under step 0).
 - **Other bounces**, by category, with the next step from the table in
   [reference/checks.md](reference/checks.md), and what each blocks.
 - **Decisions** fixers made, from the records' Decisions lines.
@@ -437,11 +504,14 @@ task in progress where it is; a resume redoes it.
 - **What comes next**, by mode:
   - **Committed**: the Status changes travel with the fixes. Merging the
     branch is what records them.
-  - **Private**: the findings are still Open in the review. Once fixes have
-    merged, record them with reconcile, in the review skill's
-    [dispositions reference](../systematic-code-review/reference/dispositions.md).
+  - **Private**: the fixed findings read Fixed, not yet landed, naming the
+    run branch and its local commits. Once they have merged, reconcile, in
+    the review skill's
+    [dispositions reference](../systematic-code-review/reference/dispositions.md),
+    records the landed sha; if the branch is abandoned, it puts them back to
+    Open.
 - **What the run taught about the skill**: anything in the playbook that got
   in the way or needed a workaround, with a suggested change.
 
 Nothing outside `<state>`, `<run dir>` and the run branch is yours to write,
-apart from the Status changes committed mode makes.
+apart from the Status changes, which `set-status` makes in either mode.

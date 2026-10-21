@@ -1,7 +1,7 @@
 # Builder subagent prompt
 
 For a `harness` task: an `X-` finding. One fresh subagent, **always
-`model: "opus"`**. Fill every placeholder.
+`model: "opus"`**. `$FIX prompt <ID> <role>` fills it in.
 
 ---
 
@@ -89,15 +89,27 @@ machine can't run, such as a database server.
 - **On any stop, leave your changes where they are.** The run rolls them
   back.
 
-**Commit bodies.** For the run to commit with, draft the body of each harness
-commit: `### production` for a refactor (what it makes possible, why
-behavior is unchanged) and `### test` for test infrastructure (what it
-provides; for a fake, what it models and leaves out). Write each in a few
-lines a reviewer of the change would want, in the project's style:
-`<commit style>`. No trailers, no `Co-Authored-By`, no "Generated with"
-line. `[PRIVATE MODE ONLY:]` The bodies follow the same rule as the code:
-nothing may point at the review. Write them in your record under
-`## Commit bodies`, one `### <commit>` heading each.
+`[SEPARATE COMMITS ONLY:]` **Commit bodies.** For the run to commit with,
+draft the body of each harness commit: `### production` for a refactor (what
+it makes possible, why behavior is unchanged) and `### test` for test
+infrastructure (what it provides; for a fake, what it models and leaves
+out). Write each in a few lines a reviewer of the change would want, in the
+project's style: `<commit style>`. No trailers, no `Co-Authored-By`, no
+"Generated with" line. `[PRIVATE MODE ONLY:]` The bodies follow the same rule
+as the code: nothing may point at the review. Write them in your record
+under `## Commit bodies`, one `### <commit>` heading each.
+
+`[ONE COMMIT ONLY:]` **Commit body.** This run makes one commit per finding:
+the harness, production refactor and test infrastructure together, goes into
+a single commit, with the proof left out. Draft its message under
+`### harness`, its first line a proposed subject prefixed `Subject: `, then
+the body: what the harness provides and makes possible; for a refactor, why
+behavior is unchanged; for a fake, what it models and leaves out. The proof
+isn't committed, so don't describe it or the defect it shows. A few lines a
+reviewer would want, in the project's style: `<commit style>`. No trailers,
+no `Co-Authored-By`, no "Generated with" line. `[PRIVATE MODE ONLY:]` The
+body follows the same rule as the code: nothing may point at the review.
+Write it in your record under `## Commit bodies`.
 
 ## Your record
 
